@@ -1,4 +1,5 @@
-[![Build Status](https://travis-ci.org/guardianproject/haven.svg)](https://travis-ci.org/guardianproject/haven)
+[![Android CI](https://github.com/lukeswitz/haven/actions/workflows/android.yml/badge.svg)](https://github.com/lukeswitz/haven/actions/workflows/android.yml)
+
 
 # About Haven
 

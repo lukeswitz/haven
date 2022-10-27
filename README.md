@@ -1,5 +1,6 @@
 [![Android CI](https://github.com/lukeswitz/haven/actions/workflows/android.yml/badge.svg)](https://github.com/lukeswitz/haven/actions/workflows/android.yml)
-
+[![CodeQL](https://github.com/lukeswitz/haven/actions/workflows/codeql.yml/badge.svg)](https://github.com/lukeswitz/haven/actions/workflows/codeql.yml)
+[![Dependency Review](https://github.com/lukeswitz/haven/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/lukeswitz/haven/actions/workflows/dependency-review.yml)
 
 # About Haven
 

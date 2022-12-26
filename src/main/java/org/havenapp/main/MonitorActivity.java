@@ -165,7 +165,24 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
         }
 
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        /* AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage("Would you like to disable the feature that keeps the screen always on?")
+                .setPositiveButton("Yes", (dialog, id) -> {
+                    // Remove the FLAG_KEEP_SCREEN_ON flag
+                    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                })
+                .setNegativeButton("No", (dialog, id) -> {
+                    // Do nothing, keep the screen always on
+                    //Ensure the screen is not able to sleep
+                    getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+                            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
+                            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
+                });
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+        */
+         
 
     }
 
@@ -347,7 +364,6 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
             public void onFinish() {
 
-                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                 txtTimer.setText(R.string.status_on);
                 initMonitor();
                 mOnTimerTicking = false;

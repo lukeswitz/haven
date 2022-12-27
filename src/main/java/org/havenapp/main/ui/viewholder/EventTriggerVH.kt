@@ -13,7 +13,7 @@ import org.havenapp.main.resources.IResourceManager
  **/
 class EventTriggerVH(private val resourceManager: IResourceManager, viewGroup: ViewGroup)
     : RecyclerView.ViewHolder(LayoutInflater.from(viewGroup.context)
-        .inflate(R.layout.item_event_trigger, viewGroup, false)) {
+    .inflate(R.layout.item_event_trigger, viewGroup, false)) {
 
     private val indexNumber = itemView.findViewById<TextView>(R.id.index_number)
     private val triggerTitle = itemView.findViewById<TextView>(R.id.title)
@@ -22,7 +22,7 @@ class EventTriggerVH(private val resourceManager: IResourceManager, viewGroup: V
     fun bind(eventTrigger: EventTrigger, string: String, position: Int) {
         indexNumber.text = "#${position + 1}"
         triggerTitle.text = eventTrigger.getStringType(resourceManager)
-        triggerDesc.text = """${eventTrigger.time?.toLocaleString() ?: ""}
-            |$string: ${eventTrigger.path}""".trimMargin()
+        triggerDesc.text = "${eventTrigger.time?.toLocaleString() ?: ""}\n$string: ${eventTrigger.path}"
     }
 }
+

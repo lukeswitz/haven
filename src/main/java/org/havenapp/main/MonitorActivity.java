@@ -31,6 +31,7 @@ import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.text.TextUtils;
 import android.util.Log;
@@ -86,10 +87,9 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     private int lastEventType = -1;
 
     /**
-     * Handler used to update back the UI after motion detection
+     * Looper used to update back the UI after motion detection
      */
-    private final Handler handler = new Handler()
-    {
+    private final Handler handler = new Handler(Looper.getMainLooper()) {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
@@ -97,33 +97,40 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
             if (mIsMonitoring) {
 
                 String message = null;
+                View view = null;
 
-                if (msg.what == EventTrigger.CAMERA) {
-                    mBtnCamera.startAnimation(mAnimShake);
-                    message = getString(R.string.motion_detected);
+                switch (msg.what) {
+                    case EventTrigger.CAMERA:
+                        view = mBtnCamera;
+                        message = getString(R.string.motion_detected);
+                        break;
+                    case EventTrigger.POWER:
+                        view = mBtnAccel;
+                        message = getString(R.string.power_detected);
+                        break;
+                    case EventTrigger.MICROPHONE:
+                        view = mBtnMic;
+                        message = getString(R.string.sound_detected);
+                        break;
+                    case EventTrigger.ACCELEROMETER:
+                    case EventTrigger.BUMP:
+                        view = mBtnAccel;
+                        message = getString(R.string.device_move_detected);
+                        break;
+                    case EventTrigger.LIGHT:
+                        view = mBtnCamera;
+                        message = getString(R.string.status_light);
+                        break;
+                }
 
-                } else if (msg.what == EventTrigger.POWER) {
-                    message = getString(R.string.power_detected);
-                    mBtnAccel.startAnimation(mAnimShake);
-
-                } else if (msg.what == EventTrigger.MICROPHONE) {
-                    mBtnMic.startAnimation(mAnimShake);
-                    message = getString(R.string.sound_detected);
-
-
-                } else if (msg.what == EventTrigger.ACCELEROMETER || msg.what == EventTrigger.BUMP) {
-                    mBtnAccel.startAnimation(mAnimShake);
-                    message = getString(R.string.device_move_detected);
-
-                } else if (msg.what == EventTrigger.LIGHT) {
-                    message = getString(R.string.status_light);
-                    mBtnCamera.startAnimation(mAnimShake);
-
+                if (view != null) {
+                    view.startAnimation(mAnimShake);
                 }
 
                 if (lastEventType != msg.what) {
-                    if (!TextUtils.isEmpty(message))
+                    if (!TextUtils.isEmpty(message)) {
                         txtStatus.setText(message);
+                    }
                 }
 
                 lastEventType = msg.what;
@@ -158,7 +165,24 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
         }
 
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        /* AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage("Would you like to disable the feature that keeps the screen always on?")
+                .setPositiveButton("Yes", (dialog, id) -> {
+                    // Remove the FLAG_KEEP_SCREEN_ON flag
+                    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                })
+                .setNegativeButton("No", (dialog, id) -> {
+                    // Do nothing, keep the screen always on
+                    //Ensure the screen is not able to sleep
+                    getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+                            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
+                            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
+                });
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+        */
+         
 
     }
 
@@ -279,6 +303,9 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
     @Override
     public void onPictureInPictureModeChanged (boolean isInPictureInPictureMode, Configuration newConfig) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
+        }
         if (isInPictureInPictureMode) {
             // Hide the full-screen UI (controls, etc.) while in picture-in-picture mode.
             findViewById(R.id.buttonBar).setVisibility(View.GONE);
@@ -337,7 +364,6 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
             public void onFinish() {
 
-                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                 txtTimer.setText(R.string.status_on);
                 initMonitor();
                 mOnTimerTicking = false;

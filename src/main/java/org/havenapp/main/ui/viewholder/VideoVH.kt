@@ -19,7 +19,7 @@ import org.havenapp.main.resources.IResourceManager
 class VideoVH(private val clickListener: VideoClickListener, private val context: Context,
               private val resourceManager: IResourceManager, viewGroup: ViewGroup)
     : RecyclerView.ViewHolder(LayoutInflater.from(viewGroup.context)
-        .inflate(R.layout.item_video, viewGroup, false)) {
+    .inflate(R.layout.item_video, viewGroup, false)) {
 
     private val indexNumber = itemView.findViewById<TextView>(R.id.index_number)
     private val title = itemView.findViewById<TextView>(R.id.title)
@@ -32,8 +32,8 @@ class VideoVH(private val clickListener: VideoClickListener, private val context
         desc.text = eventTrigger.time?.toLocaleString() ?: ""
 
         val bitmapD = BitmapDrawable(context.resources,
-                ThumbnailUtils.createVideoThumbnail(eventTrigger.path.toString(),
-                        MediaStore.Video.Thumbnails.FULL_SCREEN_KIND))
+            ThumbnailUtils.createVideoThumbnail(eventTrigger.path.toString(),
+                MediaStore.Video.Thumbnails.FULL_SCREEN_KIND))
         videoView.background = bitmapD
         videoView.setOnClickListener {
             clickListener.onVideoClick(eventTrigger)
@@ -41,13 +41,12 @@ class VideoVH(private val clickListener: VideoClickListener, private val context
 
         videoView.setOnLongClickListener {
             clickListener.onVideoLongClick(eventTrigger)
-            false
+            true
         }
     }
 
     interface VideoClickListener {
         fun onVideoClick(eventTrigger: EventTrigger)
-
         fun onVideoLongClick(eventTrigger: EventTrigger)
     }
 }

@@ -76,8 +76,16 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        setTitle("");
+
+        // Configure the back button properly
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        getSupportActionBar().setDisplayShowHomeEnabled(true);
+
+        // Check if this was launched from onboarding
+        boolean fromOnboarding = getIntent().getBooleanExtra("from_onboarding", false);
+        if (fromOnboarding) {
+            setTitle(getString(R.string.configure_sensors_title));
+        }
 
         // Initialize UI first
         mTextLevel = findViewById(R.id.text_display_level);
@@ -123,6 +131,12 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
             initWave();
             startAccel();
         }
+    }
+
+    @Override
+    public boolean onSupportNavigateUp() {
+        onBackPressed();
+        return true;
     }
 
 

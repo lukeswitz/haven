@@ -55,6 +55,7 @@ import org.havenapp.main.ui.MicrophoneConfigureActivity;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Date;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -349,43 +350,50 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
     private void initTimer() {
         txtTimer.setTextColor(getResources().getColor(R.color.colorAccent));
-        cTimer = new CountDownTimer((preferences.getTimerDelay()) * 1000, 1000) {
 
+        // Set the session before starting the timer
+        preferences.setCurrentSession(new Date(System.currentTimeMillis()));
+
+        cTimer = new CountDownTimer((preferences.getTimerDelay()) * 1000L, 1000) {
             public void onTick(long millisUntilFinished) {
                 mOnTimerTicking = true;
                 txtTimer.setText(getTimerText(millisUntilFinished));
             }
 
             public void onFinish() {
-
                 txtTimer.setText(R.string.status_on);
                 initMonitor();
                 mOnTimerTicking = false;
             }
-
         };
 
         cTimer.start();
-
-
     }
 
     private void initMonitor() {
-
         mIsMonitoring = true;
-        //ensure folder exists and will not be scanned by the gallery app
 
         try {
-            File fileImageDir = new File(Environment.getExternalStorageDirectory(), preferences.getDefaultMediaStoragePath());
-            fileImageDir.mkdirs();
-            new FileOutputStream(new File(fileImageDir, ".nomedia")).write(0);
+            // Use app-specific external directory instead of public external storage
+            File fileImageDir = new File(getExternalFilesDir(null), preferences.getDefaultMediaStoragePath());
+
+            // More robust directory creation
+            if (!fileImageDir.exists()) {
+                boolean created = fileImageDir.mkdirs();
+                if (!created) {
+                    Log.e("Monitor", "Failed to create directory: " + fileImageDir.getAbsolutePath());
+                }
+            }
+
+            File nomediaFile = new File(fileImageDir, ".nomedia");
+            if (!nomediaFile.exists()) {
+                nomediaFile.createNewFile();
+            }
         } catch (IOException e) {
             Log.e("Monitor", "unable to init media storage directory", e);
         }
 
-        //Do something after 100ms
         startService(new Intent(MonitorActivity.this, MonitorService.class));
-
     }
 
 

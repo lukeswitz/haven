@@ -15,6 +15,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.ServiceInfo;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -231,7 +232,14 @@ public class MonitorService extends Service {
         mBuilder.setWhen(System.currentTimeMillis());
         mBuilder.setVisibility(NotificationCompat.VISIBILITY_SECRET);
 
-        startForeground(1, mBuilder.build());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // API 34
+            startForeground(1, mBuilder.build(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE |
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA |
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH);
+        } else {
+            startForeground(1, mBuilder.build());
+        }
     }
 
     public boolean isRunning ()

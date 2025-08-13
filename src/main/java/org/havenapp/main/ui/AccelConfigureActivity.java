@@ -1,10 +1,13 @@
 package org.havenapp.main.ui;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MenuItem;
@@ -19,6 +22,7 @@ import java.util.List;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.masoudss.lib.SeekBarOnProgressChanged;
@@ -72,10 +76,10 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-
         setTitle("");
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
+        // Initialize UI first
         mTextLevel = findViewById(R.id.text_display_level);
         mNumberTrigger = findViewById(R.id.number_trigger_level);
         mWaveform = findViewById(R.id.simplewaveform);
@@ -94,9 +98,33 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
             mPrefManager.setAccelerometerSensitivity(newValue + "");
         });
 
-        initWave();
-        startAccel();
+        // Only request motion sensor permission for Android 12+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.HIGH_SAMPLING_RATE_SENSORS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.HIGH_SAMPLING_RATE_SENSORS}, 999);
+            } else {
+                initWave();
+                startAccel();
+            }
+        } else {
+            initWave();
+            startAccel();
+        }
     }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == 999) {
+            // Start accelerometer regardless of permission result
+            initWave();
+            startAccel();
+        }
+    }
+
 
     private void initWave() {
         mWaveAmpList = new ArrayList<>();

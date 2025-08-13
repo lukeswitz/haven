@@ -249,9 +249,12 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     }
 
     private void configCamera() {
+        // Stop camera BEFORE launching config activity
+        if (mFragmentCamera != null) {
+            mFragmentCamera.stopCamera();
+        }
 
-        mFragmentCamera.stopCamera();
-        startActivityForResult(new Intent(this, CameraConfigureActivity.class),REQUEST_CAMERA);
+        startActivityForResult(new Intent(this, CameraConfigureActivity.class), REQUEST_CAMERA);
     }
 
 
@@ -327,18 +330,17 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
-        if (requestCode == REQUEST_TIMER) {
-            initTimer();
-        }
-        else if (requestCode == REQUEST_CAMERA)
-        {
-            mFragmentCamera.initCamera();
+        if (requestCode == REQUEST_CAMERA) {
+            // Restart camera after config
+            if (mFragmentCamera != null) {
+                mFragmentCamera.initCamera();
+            }
         }
     }
 
     @Override
     protected void onDestroy() {
-        if (!mIsMonitoring)
+        if (!mIsMonitoring && mFragmentCamera != null)
         {
             mFragmentCamera.stopCamera();
         }
@@ -434,6 +436,11 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     public void onResume() {
         super.onResume();
 
+        // Restart camera when resuming
+        if (mFragmentCamera != null) {
+            mFragmentCamera.initCamera();
+        }
+
         // Handle fragment view access here when view is guaranteed to exist
         if (mFragmentCamera != null && mFragmentCamera.getView() != null) {
             mFragmentCamera.getView().setClickable(false);
@@ -456,6 +463,10 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
         super.onPause();
         LocalBroadcastManager.getInstance(this).unregisterReceiver(receiver);
 
+        // Stop camera when pausing to prevent surface issues
+        if (mFragmentCamera != null) {
+            mFragmentCamera.stopCamera();
+        }
     }
 
     @Override

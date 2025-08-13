@@ -28,9 +28,9 @@ public class PPAppIntro extends AppIntro {
         setFadeAnimation();
         setWizardMode(true);
         setBackButtonVisibilityWithDone(true);
+        showPagerIndicator(true);
 
-        // Instead of fragments, you can also use our default slide
-        // Just set a title, description, background and image. AppIntro will do the rest.
+
         addSlide(AppIntroFragment.newInstance(getString(R.string.intro1_title), getString(R.string.intro1_desc),
                 R.drawable.web_hi_res_512, getResources().getColor(R.color.colorPrimaryDark)));
 

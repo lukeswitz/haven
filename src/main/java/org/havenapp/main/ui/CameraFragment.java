@@ -57,6 +57,7 @@ public final class CameraFragment extends Fragment {
     @Override
     public void onPause() {
         super.onPause();
+        stopCamera(); // Stop camera to prevent surface issues
     }
 
     @Override
@@ -65,8 +66,6 @@ public final class CameraFragment extends Fragment {
         initCamera();
 
         cameraViewHolder.setMotionSensitivity(prefs.getCameraSensitivity());
-
-
     }
 
     public void updateCamera ()
@@ -121,10 +120,10 @@ public final class CameraFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-
-        if (cameraViewHolder != null)
+        stopCamera(); // Ensure camera is stopped
+        if (cameraViewHolder != null) {
             cameraViewHolder.destroy();
-
+        }
     }
 
     public void onSensorChanged(SensorEvent event) {

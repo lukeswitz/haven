@@ -10,9 +10,13 @@
 package org.havenapp.main.service;
 
 
+import static android.content.Context.*;
+
 import android.annotation.SuppressLint;
+import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
@@ -24,6 +28,7 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.telephony.SmsManager;
 import android.text.TextUtils;
 
@@ -145,13 +150,42 @@ public class MonitorService extends Service {
         startSensors();
 
         showNotification();
-
-      //  startCamera();
-
+        
         PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.FULL_WAKE_LOCK,
                 "haven:MyWakelockTag");
         wakeLock.acquire();
+    }
+
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        // Return START_STICKY to ensure service restarts if killed
+        return START_STICKY;
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        // Restart service when task is removed
+        Intent restartServiceIntent = new Intent(getApplicationContext(), this.getClass());
+        restartServiceIntent.setPackage(getPackageName());
+
+        PendingIntent restartServicePendingIntent = PendingIntent.getService(
+                getApplicationContext(),
+                1,
+                restartServiceIntent,
+                PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        AlarmManager alarmService = (AlarmManager) getApplicationContext().getSystemService(ALARM_SERVICE);
+        alarmService.set(
+                AlarmManager.ELAPSED_REALTIME,
+                SystemClock.elapsedRealtime() + 1000,
+                restartServicePendingIntent
+        );
+
+        super.onTaskRemoved(rootIntent);
     }
 
     @RequiresApi(api = Build.VERSION_CODES.O)

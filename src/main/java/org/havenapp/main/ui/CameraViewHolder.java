@@ -329,10 +329,18 @@ public class CameraViewHolder {
 	        return false;
         String ts1 = new SimpleDateFormat(Utils.DATE_TIME_PATTERN,
                 Locale.getDefault()).format(new Date());
-        File fileStoragePath = new File(Environment.getExternalStorageDirectory(),prefs.getDefaultMediaStoragePath());
-        fileStoragePath.mkdirs();
 
-        videoFile =  new File(fileStoragePath, ts1 + ".mp4");
+    // Use context's external files directory instead of deprecated Environment.getExternalStorageDirectory()
+        File fileStoragePath = new File(context.getExternalFilesDir(null), prefs.getDefaultMediaStoragePath());
+        if (!fileStoragePath.exists()) {
+            boolean created = fileStoragePath.mkdirs();
+            if (!created) {
+                Log.e("CameraViewHolder", "Failed to create directory: " + fileStoragePath.getAbsolutePath());
+                return false;
+            }
+        }
+
+        videoFile = new File(fileStoragePath, ts1 + ".mp4");
 
 	// jcodec encoding replaced by CameraView's android system encoding.
 

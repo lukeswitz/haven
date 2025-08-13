@@ -153,18 +153,17 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        boolean permsNeeded = askForPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, 1);
+        initSetupLayout();
 
-        if (!permsNeeded) {
-            initSetupLayout();
-            if (MonitorService.getInstance() != null)
-                if (MonitorService.getInstance().isRunning())
-                    initActiveLayout();
-        } else {
-            // Set a temporary layout while waiting for permissions
-            setContentView(R.layout.activity_monitor);
+        // Check if service is already running
+        if (MonitorService.getInstance() != null && MonitorService.getInstance().isRunning()) {
+            initActiveLayout();
         }
+
+        // Request permissions after UI is set up
+        askForPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, 1);
     }
+
     private void initActiveLayout() {
 
         ((Button) findViewById(R.id.btnStartLater)).setText(R.string.action_cancel);
@@ -177,8 +176,13 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     }
 
     private void initSetupLayout() {
+        Log.d("MonitorActivity", "initSetupLayout called");
         preferences = new PreferenceManager(getApplicationContext());
         setContentView(R.layout.activity_monitor);
+        Log.d("MonitorActivity", "setContentView called");
+
+        // Make fragment visible BEFORE any camera operations
+        findViewById(R.id.fragment_camera).setVisibility(View.VISIBLE);
 
         txtTimer = (TextView) findViewById(R.id.timer_text);
         View viewTimer = findViewById(R.id.timer_container);
@@ -463,10 +467,9 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
                 askForPermission(Manifest.permission.CAMERA, 2);
                 break;
             case 2:
-                initSetupLayout();
+                // Permissions done - UI is already initialized
                 break;
         }
-
     }
 
 

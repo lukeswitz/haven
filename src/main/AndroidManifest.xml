@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <uses-feature
         android:name="android.hardware.camera"
@@ -35,12 +36,14 @@
 
     <application
         android:name=".HavenApp"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:largeHeap="true"
         android:theme="@style/AppTheme"
+        android:fullBackupContent="@xml/backup_config"
         android:supportsRtl="false"
-        tools:replace="android:supportsRtl"
+        tools:replace="android:allowBackup,android:supportsRtl"
         tools:ignore="GoogleAppIndexingWarning"
         android:requestLegacyExternalStorage="true">
         <activity
@@ -65,8 +68,12 @@
             android:screenOrientation="fullUser" />
         <activity
             android:name=".MonitorActivity"
+            android:label="@string/app_name"
             android:screenOrientation="fullUser"
+            android:exported="true"
             android:launchMode="singleTop"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
             android:configChanges=
                 "screenSize|smallestScreenSize|screenLayout|orientation"
             />

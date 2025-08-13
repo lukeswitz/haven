@@ -197,38 +197,41 @@ public class MonitorService extends Service {
      * Show a notification while this service is running.
      */
     private void showNotification() {
-
-    	Intent toLaunch = new Intent(getApplicationContext(),
-    	                                          MonitorActivity.class);
-
+        Intent toLaunch = new Intent(getApplicationContext(), MonitorActivity.class);
         toLaunch.setAction(Intent.ACTION_MAIN);
         toLaunch.addCategory(Intent.CATEGORY_LAUNCHER);
         toLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
-        PendingIntent resultPendingIntent =
-                PendingIntent.getActivity(
-                        this,
-                        0,
-                        toLaunch,
-                        PendingIntent.FLAG_UPDATE_CURRENT
-                );
+        PendingIntent resultPendingIntent;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            resultPendingIntent = PendingIntent.getActivity(
+                    this,
+                    0,
+                    toLaunch,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+        } else {
+            resultPendingIntent = PendingIntent.getActivity(
+                    this,
+                    0,
+                    toLaunch,
+                    PendingIntent.FLAG_UPDATE_CURRENT
+            );
+        }
 
-        // In this sample, we'll use the same text for the ticker and the expanded notification
         CharSequence text = getText(R.string.secure_service_started);
+        NotificationCompat.Builder mBuilder =
+                new NotificationCompat.Builder(this, channelId)
+                        .setSmallIcon(R.drawable.ic_stat_haven)
+                        .setContentTitle(getString(R.string.app_name))
+                        .setContentText(text);
 
-		NotificationCompat.Builder mBuilder =
-				new NotificationCompat.Builder(this, channelId)
-						.setSmallIcon(R.drawable.ic_stat_haven)
-						.setContentTitle(getString(R.string.app_name))
-						.setContentText(text);
-
-		mBuilder.setPriority(NotificationCompat.PRIORITY_MIN);
+        mBuilder.setPriority(NotificationCompat.PRIORITY_MIN);
         mBuilder.setContentIntent(resultPendingIntent);
         mBuilder.setWhen(System.currentTimeMillis());
         mBuilder.setVisibility(NotificationCompat.VISIBILITY_SECRET);
 
-		startForeground(1, mBuilder.build());
-
+        startForeground(1, mBuilder.build());
     }
 
     public boolean isRunning ()

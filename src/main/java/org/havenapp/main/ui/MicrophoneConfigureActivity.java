@@ -2,21 +2,17 @@ package org.havenapp.main.ui;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
-import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.PorterDuff;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.widget.TextView;
-
-import com.maxproj.simplewaveform.SimpleWaveform;
 
 import org.havenapp.main.PreferenceManager;
 import org.havenapp.main.R;
 import org.havenapp.main.sensors.media.MicSamplerTask;
 import org.havenapp.main.sensors.media.MicrophoneTaskFactory;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -64,88 +60,44 @@ public class MicrophoneConfigureActivity extends AppCompatActivity implements Mi
 
         mNumberTrigger.setListener((oldValue, newValue) -> {
             mWaveform.setThreshold(newValue);
-            mPrefManager.setMicrophoneSensitivity(newValue+"");
+            mPrefManager.setMicrophoneSensitivity(newValue + "");
         });
-
 
         initWave();
         startMic();
     }
 
-    private void initWave ()
-    {
-        mWaveform.init();
-
+    private void initWave() {
         mWaveAmpList = new LinkedList<>();
 
-        mWaveform.setDataList(mWaveAmpList);
+        // Configure WaveformSeekBar properties
+        mWaveform.setWaveWidth(5f);
+        mWaveform.setWaveGap(2f);
+        mWaveform.setWaveMinHeight(5f);
+        mWaveform.setWaveCornerRadius(2f);
+        mWaveform.setWaveBackgroundColor(Color.WHITE);
+        mWaveform.setWaveProgressColor(ContextCompat.getColor(this, R.color.colorAccent));
 
-        //define bar gap
-        mWaveform.barGap = 30;
-
-        //define x-axis direction
-        mWaveform.modeDirection = SimpleWaveform.MODE_DIRECTION_RIGHT_LEFT;
-
-        //define if draw opposite pole when show bars
-        mWaveform.modeAmp = SimpleWaveform.MODE_AMP_ABSOLUTE;
-        //define if the unit is px or percent of the view's height
-        mWaveform.modeHeight = SimpleWaveform.MODE_HEIGHT_PERCENT;
-        //define where is the x-axis in y-axis
-        mWaveform.modeZero = SimpleWaveform.MODE_ZERO_CENTER;
-        //if show bars?
-        mWaveform.showBar = true;
-
-        mWaveform.setMaxVal(100);
-
-        //define how to show peaks outline
-        mWaveform.modePeak = SimpleWaveform.MODE_PEAK_ORIGIN;
-        //if show peaks outline?
-        mWaveform.showPeak = true;
-
-        //show x-axis
-        mWaveform.showXAxis = true;
-        Paint xAxisPencil = new Paint();
-        xAxisPencil.setStrokeWidth(1);
-        xAxisPencil.setColor(0x88ffffff);
-        mWaveform.xAxisPencil = xAxisPencil;
-
-        //define pencil to draw bar
-        Paint barPencilFirst = new Paint();
-        Paint barPencilSecond = new Paint();
-        Paint peakPencilFirst = new Paint();
-        Paint peakPencilSecond = new Paint();
-
-        barPencilFirst.setStrokeWidth(15);
-        barPencilFirst.setColor(getResources().getColor(R.color.colorAccent));
-        mWaveform.barPencilFirst = barPencilFirst;
-
-        barPencilFirst.setStrokeWidth(15);
-
-        barPencilSecond.setStrokeWidth(15);
-        barPencilSecond.setColor(getResources().getColor(R.color.colorPrimaryDark));
-        mWaveform.barPencilSecond = barPencilSecond;
-
-        //define pencil to draw peaks outline
-        peakPencilFirst.setStrokeWidth(5);
-        peakPencilFirst.setColor(getResources().getColor(R.color.colorAccent));
-        mWaveform.peakPencilFirst = peakPencilFirst;
-        peakPencilSecond.setStrokeWidth(5);
-        peakPencilSecond.setColor(getResources().getColor(R.color.colorPrimaryDark));
-        mWaveform.peakPencilSecond = peakPencilSecond;
-        mWaveform.firstPartNum = 0;
-
-
-        //define how to clear screen
-        mWaveform.clearScreenListener = new SimpleWaveform.ClearScreenListener() {
-            @Override
-            public void clearScreen(Canvas canvas) {
-                canvas.drawColor(Color.WHITE, PorterDuff.Mode.CLEAR);
-            }
-        };
-        //show...
-        mWaveform.refresh();
+        // Initialize with empty sample data
+        updateWaveformData();
     }
-    private void startMic () {
+
+    private void updateWaveformData() {
+        // Convert LinkedList to int array for WaveformSeekBar
+        int[] sampleArray = new int[Math.max(mWaveAmpList.size(), 1)];
+        for (int i = 0; i < mWaveAmpList.size(); i++) {
+            sampleArray[i] = mWaveAmpList.get(i);
+        }
+
+        // If empty, add a single zero value
+        if (sampleArray.length == 0 || mWaveAmpList.isEmpty()) {
+            sampleArray = new int[]{0};
+        }
+
+        mWaveform.setSampleFrom(sampleArray);
+    }
+
+    private void startMic() {
         String permission = Manifest.permission.RECORD_AUDIO;
         int requestCode = 999;
         if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
@@ -172,7 +124,6 @@ public class MicrophoneConfigureActivity extends AppCompatActivity implements Mi
                 e.printStackTrace();
             }
         }
-
     }
 
     @Override
@@ -183,9 +134,7 @@ public class MicrophoneConfigureActivity extends AppCompatActivity implements Mi
             case 999:
                 startMic();
                 break;
-
         }
-
     }
 
     @Override
@@ -193,14 +142,13 @@ public class MicrophoneConfigureActivity extends AppCompatActivity implements Mi
         super.onDestroy();
         if (microphone != null)
             microphone.cancel(true);
-
     }
 
     @Override
     public void onSignalReceived(short[] signal) {
         /*
-		 * We do and average of the 512 samples
-		 */
+         * We do and average of the 512 samples
+         */
         int total = 0;
         int count = 0;
         for (short peak : signal) {
@@ -213,9 +161,9 @@ public class MicrophoneConfigureActivity extends AppCompatActivity implements Mi
         //  Log.i("MicrophoneFragment", "Total value: " + total);
         int average = 0;
         if (count > 0) average = total / count;
-		/*
-		 * We compute a value in decibels
-		 */
+        /*
+         * We compute a value in decibels
+         */
         double averageDB = 0.0;
         if (average != 0) {
             averageDB = 20 * Math.log10(Math.abs(average));
@@ -227,32 +175,28 @@ public class MicrophoneConfigureActivity extends AppCompatActivity implements Mi
             mNumberTrigger.invalidate();
         }
 
-        int perc = (int)((averageDB/120d)*100d)-10;
+        int perc = (int) ((averageDB / 120d) * 100d) - 10;
         mWaveAmpList.addFirst(perc);
 
-        if (mWaveAmpList.size() > mWaveform.width / mWaveform.barGap + 2) {
+        // Limit the size of the waveform data
+        int maxSamples = Math.max(50, getResources().getDisplayMetrics().widthPixels / 10);
+        if (mWaveAmpList.size() > maxSamples) {
             mWaveAmpList.removeLast();
         }
 
-        mWaveform.refresh();
+        updateWaveformData();
         mTextLevel.setText(getString(R.string.current_noise_base).concat(" ").concat(Integer.toString((int) averageDB)).concat("db"));
-
     }
 
     @Override
     public void onMicError() {
-
+        // Handle microphone error
     }
-
-
-
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case android.R.id.home:
-                finish();
-                break;
+        if (item.getItemId() == android.R.id.home) {
+            finish();
         }
         return true;
     }

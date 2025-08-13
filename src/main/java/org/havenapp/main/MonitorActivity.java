@@ -156,36 +156,15 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
         boolean permsNeeded = askForPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, 1);
 
         if (!permsNeeded) {
-
             initSetupLayout();
-
             if (MonitorService.getInstance() != null)
                 if (MonitorService.getInstance().isRunning())
                     initActiveLayout();
-
+        } else {
+            // Set a temporary layout while waiting for permissions
+            setContentView(R.layout.activity_monitor);
         }
-
-        /* AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setMessage("Would you like to disable the feature that keeps the screen always on?")
-                .setPositiveButton("Yes", (dialog, id) -> {
-                    // Remove the FLAG_KEEP_SCREEN_ON flag
-                    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                })
-                .setNegativeButton("No", (dialog, id) -> {
-                    // Do nothing, keep the screen always on
-                    //Ensure the screen is not able to sleep
-                    getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
-                            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
-                            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
-                });
-
-        AlertDialog dialog = builder.create();
-        dialog.show();
-        */
-         
-
     }
-
     private void initActiveLayout() {
 
         ((Button) findViewById(R.id.btnStartLater)).setText(R.string.action_cancel);
@@ -210,17 +189,20 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
         txtTimer.setOnClickListener(v -> {
             if (cTimer == null)
                 showTimeDelayDialog();
-
         });
+
         findViewById(R.id.timer_text_title).setOnClickListener(v -> {
             if (cTimer == null)
                 showTimeDelayDialog();
-
         });
 
-        findViewById(R.id.btnStartLater).setOnClickListener(v -> doCancel());
+        findViewById(R.id.btnStartLater).setOnClickListener(v -> {
+            Log.d("MonitorActivity", "Start Later clicked");
+            doCancel();
+        });
 
         findViewById(R.id.btnStartNow).setOnClickListener(v -> {
+            Log.d("MonitorActivity", "Start Now clicked");
             ((Button) findViewById(R.id.btnStartLater)).setText(R.string.action_cancel);
             findViewById(R.id.btnStartNow).setVisibility(View.INVISIBLE);
             findViewById(R.id.timer_text_title).setVisibility(View.INVISIBLE);
@@ -229,30 +211,36 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
         mBtnAccel = findViewById(R.id.btnAccelSettings);
         mBtnAccel.setOnClickListener(v -> {
+            Log.d("MonitorActivity", "Accel button clicked");
             if (!mIsMonitoring)
                 startActivity(new Intent(MonitorActivity.this, AccelConfigureActivity.class));
         });
 
         mBtnMic = findViewById(R.id.btnMicSettings);
         mBtnMic.setOnClickListener(v -> {
+            Log.d("MonitorActivity", "Mic button clicked");
             if (!mIsMonitoring)
                 startActivity(new Intent(MonitorActivity.this, MicrophoneConfigureActivity.class));
         });
 
         mBtnCamera = findViewById(R.id.btnCameraSwitch);
         mBtnCamera.setOnClickListener(v -> {
+            Log.d("MonitorActivity", "Camera button clicked");
             if (!mIsMonitoring)
                 configCamera();
         });
 
-        findViewById(R.id.btnSettings).setOnClickListener(v -> showSettings());
+        findViewById(R.id.btnSettings).setOnClickListener(v -> {
+            Log.d("MonitorActivity", "Settings button clicked");
+            showSettings();
+        });
 
-        mFragmentCamera =  ((CameraFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_camera));
+        mFragmentCamera = ((CameraFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_camera));
+
+        // remove fragment, do this in onResume instead
 
         txtStatus = findViewById(R.id.txtStatus);
-
         mAnimShake = AnimationUtils.loadAnimation(this, R.anim.shake);
-
         mIsInitializedLayout = true;
     }
 
@@ -441,6 +429,14 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     @Override
     public void onResume() {
         super.onResume();
+
+        // Handle fragment view access here when view is guaranteed to exist
+        if (mFragmentCamera != null && mFragmentCamera.getView() != null) {
+            mFragmentCamera.getView().setClickable(false);
+            mFragmentCamera.getView().setFocusable(false);
+            Log.d("MonitorActivity", "Fragment view configured");
+        }
+
         if (mIsInitializedLayout && (!mOnTimerTicking) && (!mIsMonitoring)) {
             int totalMilliseconds = preferences.getTimerDelay() * 1000;
             txtTimer.setText(getTimerText(totalMilliseconds));
@@ -448,8 +444,7 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
         IntentFilter filter = new IntentFilter();
         filter.addAction("event");
-        LocalBroadcastManager.getInstance(this).registerReceiver(receiver,filter );
-
+        LocalBroadcastManager.getInstance(this).registerReceiver(receiver, filter);
     }
 
     @Override

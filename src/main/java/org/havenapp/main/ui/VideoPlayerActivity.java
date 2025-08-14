@@ -2,6 +2,7 @@ package org.havenapp.main.ui;
 
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.MenuItem;
 import android.view.View;
 
 import com.google.android.exoplayer2.ExoPlayer;
@@ -26,11 +27,19 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
+        // Back button
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setDisplayShowHomeEnabled(true);
+            getSupportActionBar().setTitle("Video Event"); // todo add to strings
+        }
+
         // Get reference to the player view
         playerView = findViewById(R.id.player);
 
         initializePlayer();
     }
+
 
     private void initializePlayer() {
         // Create ExoPlayer instance
@@ -81,6 +90,16 @@ public class VideoPlayerActivity extends AppCompatActivity implements Player.Lis
             player.release();
             player = null;
         }
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+        if (id == android.R.id.home) {
+            finish();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     // ExoPlayer.Listener methods

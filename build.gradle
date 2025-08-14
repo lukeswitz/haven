@@ -1,5 +1,5 @@
 buildscript {
-    ext.kotlin_version = '2.2.0'
+    ext.kotlin_version = '2.1.0'
     repositories {
         google()
         mavenCentral()
@@ -8,7 +8,7 @@ buildscript {
         maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.11.1'
+        classpath 'com.android.tools.build:gradle:8.7.2'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
@@ -37,18 +37,16 @@ allprojects {
     }
 
     project.ext {
-        // these are common variables used in */build.gradle
         version_number = getVersionName()
         group_info = "haven"
         buildToolsVersion = "30.0.2"
-        minSdkVersion = 21
-        targetSdkVersion = 30
+        minSdkVersion = 24
+        targetSdkVersion = 34
     }
 }
 
 android {
     compileSdkVersion 34
-    // Remove buildToolsVersion line
 
     buildFeatures {
         viewBinding true
@@ -62,6 +60,7 @@ android {
     configurations.all {
         resolutionStrategy {
             force 'androidx.work:work-runtime:2.8.1'
+            force 'androidx.work:work-runtime-ktx:2.8.1'  // Update to match work-runtime version
         }
     }
 
@@ -70,15 +69,10 @@ android {
         versionCode 2001
         versionName getVersionName()
         archivesBaseName = "Haven-$versionName"
-        minSdkVersion 21
+        minSdkVersion 24
         targetSdkVersion 34
         ndkVersion '25.0.8775105'
 
-        // Use consistent Java version
-        compileOptions {
-            sourceCompatibility JavaVersion.VERSION_11
-            targetCompatibility JavaVersion.VERSION_11
-        }
         multiDexEnabled true
         vectorDrawables.useSupportLibrary = true
 
@@ -103,16 +97,17 @@ android {
         }
     }
 
-    // Update to match defaultConfig
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        // Enable core library desugaring
+        coreLibraryDesugaringEnabled true
     }
 
-    // Update to match Java version
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"  // Change from "11"
     }
+
 
     sourceSets {
         androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
@@ -129,6 +124,17 @@ configurations {
 }
 
 dependencies {
+    // Core library desugaring
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+
+    // Matrix Android SDK - exclude conflicting work manager
+    implementation('org.matrix.android:matrix-android-sdk2:1.2.1') {
+        exclude group: 'androidx.work', module: 'work-runtime-ktx'
+        exclude group: 'androidx.work', module: 'work-runtime'
+    }
+
+    implementation 'androidx.work:work-runtime:2.8.1'
+    implementation 'androidx.work:work-runtime-ktx:2.8.1'
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.9.2'
     implementation 'androidx.appcompat:appcompat:1.7.1'
     implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
@@ -140,6 +146,13 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.13.1'
     implementation 'com.wdullaer:materialdatetimepicker:4.2.3'
     implementation 'com.github.guardianproject:signal-cli-android:v0.6.0-android-beta-1'
+    // Signal Protocol
+    implementation 'org.signal:libsignal-android:0.78.2'
+    implementation 'com.github.WhisperSystems:libsignal-service-java:v1.8.6'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+
+    // Additional crypto libraries
+    implementation 'org.bouncycastle:bcprov-jdk15on:1.70'
     implementation 'net.the4thdimension:audio-wife:1.0.3'
     implementation 'com.github.AppIntro:AppIntro:5.1.0'
     implementation 'com.github.bumptech.glide:glide:4.14.2'
@@ -181,9 +194,6 @@ dependencies {
 
     // android-job
     implementation 'com.evernote:android-job:1.4.3'
-
-    // Add WorkManager to fix compatibility issues
-    implementation 'androidx.work:work-runtime:2.8.1'
 
     // new camera view: https://github.com/natario1/CameraView
     implementation 'com.otaliastudios:cameraview:2.7.2'

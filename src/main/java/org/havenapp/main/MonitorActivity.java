@@ -341,10 +341,10 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
     @Override
     protected void onDestroy() {
-        if (!mIsMonitoring && mFragmentCamera != null)
-        {
+        if (!mIsMonitoring && mFragmentCamera != null) {
             mFragmentCamera.stopCamera();
         }
+        // Don't stop the service here if monitoring is active
         super.onDestroy();
     }
 

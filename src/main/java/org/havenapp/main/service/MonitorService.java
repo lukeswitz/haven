@@ -150,7 +150,7 @@ public class MonitorService extends Service {
         startSensors();
 
         showNotification();
-        
+
         PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.FULL_WAKE_LOCK,
                 "haven:MyWakelockTag");

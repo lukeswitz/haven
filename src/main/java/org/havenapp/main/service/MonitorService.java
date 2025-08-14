@@ -10,18 +10,14 @@
 package org.havenapp.main.service;
 
 
-import static android.content.Context.*;
-
 import android.annotation.SuppressLint;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.app.Service;
-import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
 import android.graphics.Color;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -29,7 +25,6 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.PowerManager;
 import android.os.SystemClock;
-import android.telephony.SmsManager;
 import android.text.TextUtils;
 
 import androidx.annotation.RequiresApi;
@@ -40,6 +35,7 @@ import org.havenapp.main.HavenApp;
 import org.havenapp.main.MonitorActivity;
 import org.havenapp.main.PreferenceManager;
 import org.havenapp.main.R;
+import org.havenapp.main.alerts.AlertManager;
 import org.havenapp.main.database.HavenEventDB;
 import org.havenapp.main.model.Event;
 import org.havenapp.main.model.EventTrigger;
@@ -51,12 +47,7 @@ import org.havenapp.main.sensors.BumpMonitor;
 import org.havenapp.main.sensors.MicrophoneMonitor;
 import org.havenapp.main.sensors.PowerConnectionReceiver;
 
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.StringTokenizer;
-
-import androidx.annotation.RequiresApi;
-import androidx.core.app.NotificationCompat;
 
 @SuppressLint("HandlerLeak")
 public class MonitorService extends Service {
@@ -130,7 +121,7 @@ public class MonitorService extends Service {
      * Application
      */
     private HavenApp mApp = null;
-
+    private AlertManager alertManager;
 	/**
 	 * Called on service creation, sends a notification
 	 */
@@ -142,6 +133,8 @@ public class MonitorService extends Service {
         mApp = (HavenApp)getApplication();
 
         mPrefs = new PreferenceManager(this);
+
+        alertManager = new AlertManager(this);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             setupNotificationChannel();
@@ -404,41 +397,14 @@ public class MonitorService extends Service {
         eventTrigger.setId(eventTriggerId);
 
         if (doNotification) {
-
             mLastNotification = new Date();
-            /*
-             * If SMS mode is on we send an SMS or Signal alert to the specified
-             * number
-             */
+
             StringBuilder alertMessage = new StringBuilder();
             alertMessage.append(getString(R.string.intrusion_detected,
                     eventTrigger.getStringType(new ResourceManager(this))));
 
-            if (mPrefs.isRemoteNotificationActive() && mPrefs.isSignalVerified()) {
-                //since this is a secure channel, we can add the Onion address
-                if (mPrefs.getRemoteAccessActive() && (!TextUtils.isEmpty(mPrefs.getRemoteAccessOnion()))) {
-                    alertMessage.append(" http://").append(mPrefs.getRemoteAccessOnion())
-                            .append(':').append(WebServer.LOCAL_PORT);
-                }
-
-                SignalSender sender = SignalSender.getInstance(this, mPrefs.getSignalUsername());
-                ArrayList<String> recips = new ArrayList<>();
-                StringTokenizer st = new StringTokenizer(mPrefs.getRemotePhoneNumber(), ",");
-                while (st.hasMoreTokens())
-                    recips.add(st.nextToken());
-
-                String attachment = null;
-                if (eventTrigger.getType() == EventTrigger.CAMERA) {
-                    attachment = eventTrigger.getPath();
-                } else if (eventTrigger.getType() == EventTrigger.MICROPHONE) {
-                    attachment = eventTrigger.getPath();
-                }
-                else if (eventTrigger.getType() == EventTrigger.CAMERA_VIDEO) {
-                    attachment = eventTrigger.getPath();
-                }
-
-                sender.sendMessage(recips, alertMessage.toString(), attachment, null);
-            }
+            // Send via all configured alert channels
+            alertManager.sendAlert(alertMessage.toString(), eventTrigger.getPath(), alertType);
         }
 
     }

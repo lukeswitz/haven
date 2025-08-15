@@ -428,21 +428,7 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
             startForegroundService(serviceIntent);
         } else {
             startService(serviceIntent);
-        }
-
-        // Request overlay permission before starting monitoring
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!Settings.canDrawOverlays(this)) {
-                // Show dialog explaining why permission is needed
-                new AlertDialog.Builder(this)
-                        .setTitle("Permission Required")
-                        .setMessage("Haven needs permission to display over other apps for background camera monitoring. Please enable this permission in the next screen.")
-                        .setPositiveButton("OK", (dialog, which) -> requestOverlayPermission())
-                        .setNegativeButton("Cancel", null)
-                        .show();
-                return;
-            }
-        }
+        }                          
 
         try {
             // Use app-specific external directory instead of public external storage

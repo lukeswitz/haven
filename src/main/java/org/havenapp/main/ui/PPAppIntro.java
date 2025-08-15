@@ -1,6 +1,10 @@
 package org.havenapp.main.ui;
 
 import android.content.Intent;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Toast;
@@ -99,7 +103,44 @@ public class PPAppIntro extends AppIntro {
     }
 
     private void startConfigurationFlow() {
-        // Start with accelerometer configuration first
+        // Check sensor permissions BEFORE launching AccelConfigureActivity
+        checkSensorPermissionsFirst();
+    }
+
+    private void checkSensorPermissionsFirst() {
+        // Try to access accelerometer to trigger GrapheneOS permission dialog
+        SensorManager sensorMgr = (SensorManager) getSystemService(SENSOR_SERVICE);
+        Sensor sensor = sensorMgr.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+
+        if (sensor != null) {
+            try {
+                // Register listener briefly to trigger GrapheneOS sensors permission
+                SensorEventListener dummyListener = new SensorEventListener() {
+                    public void onSensorChanged(SensorEvent event) {
+                        // Immediately unregister after first reading
+                        sensorMgr.unregisterListener(this);
+                        // Now launch the actual accelerometer configuration
+                        launchAccelConfig();
+                    }
+
+                    @Override
+                    public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+                };
+
+                sensorMgr.registerListener(dummyListener, sensor, SensorManager.SENSOR_DELAY_NORMAL);
+
+            } catch (Exception e) {
+                // If sensor access fails, still proceed
+                launchAccelConfig();
+            }
+        } else {
+            // No accelerometer, still proceed
+            launchAccelConfig();
+        }
+    }
+
+    private void launchAccelConfig() {
+        // Start with accelerometer configuration
         Intent accelIntent = new Intent(this, AccelConfigureActivity.class);
         accelIntent.putExtra("from_onboarding", true);
         startActivityForResult(accelIntent, REQUEST_ACCEL_CONFIG);

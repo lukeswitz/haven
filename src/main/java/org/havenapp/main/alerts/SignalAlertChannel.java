@@ -30,7 +30,7 @@ public class SignalAlertChannel implements AlertChannel {
     private void initializeSignalProtocol() {
         try {
             // Initialize Signal Protocol Store
-            protocolStore = new HavenSignalProtocolStore(context);
+//            protocolStore = new HavenSignalProtocolStore(context);
 
             // Generate identity keys if not exist
             if (protocolStore.getIdentityKeyPair() == null) {

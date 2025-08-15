@@ -46,6 +46,11 @@ allprojects {
 }
 
 android {
+
+    tasks.withType(JavaCompile) {
+        options.compilerArgs += ["-Xlint:unchecked"]
+    }
+
     compileSdkVersion 34
 
     buildFeatures {
@@ -128,10 +133,10 @@ dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 
     // Matrix Android SDK - exclude conflicting work manager
-    implementation('org.matrix.android:matrix-android-sdk2:1.2.1') {
-        exclude group: 'androidx.work', module: 'work-runtime-ktx'
-        exclude group: 'androidx.work', module: 'work-runtime'
-    }
+//    implementation('org.matrix.android:matrix-android-sdk2:1.2.1') {
+//        exclude group: 'androidx.work', module: 'work-runtime-ktx'
+//        exclude group: 'androidx.work', module: 'work-runtime'
+//    }
 
     implementation 'androidx.work:work-runtime:2.8.1'
     implementation 'androidx.work:work-runtime-ktx:2.8.1'
@@ -145,11 +150,12 @@ dependencies {
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'com.google.code.gson:gson:2.13.1'
     implementation 'com.wdullaer:materialdatetimepicker:4.2.3'
+
+//    // Signal Protocol
     implementation 'com.github.guardianproject:signal-cli-android:v0.6.0-android-beta-1'
-    // Signal Protocol
-    implementation 'org.signal:libsignal-android:0.78.2'
-    implementation 'com.github.WhisperSystems:libsignal-service-java:v1.8.6'
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+//    implementation 'org.signal:libsignal-android:0.78.2'
+//    implementation 'com.github.WhisperSystems:libsignal-service-java:v1.8.6'
+//    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 
     // Additional crypto libraries
     implementation 'org.bouncycastle:bcprov-jdk15on:1.70'

@@ -315,8 +315,12 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     }
 
     private void doCancel() {
-
         boolean wasTimer = false;
+
+        // If screen is blanked, unblank it first to ensure proper cleanup
+        if (isBlankScreenActive) {
+            unblankScreen();
+        }
 
         if (cTimer != null) {
             cTimer.cancel();
@@ -328,6 +332,12 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
         if (mIsMonitoring) {
             mIsMonitoring = false;
             btnBlankScreen.setVisibility(View.GONE);
+
+            // Ensure camera is stopped before stopping service
+            if (mFragmentCamera != null) {
+                mFragmentCamera.stopCamera();
+            }
+
             stopService(new Intent(this, MonitorService.class));
             finish();
         } else {
@@ -342,7 +352,6 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
             if (!wasTimer)
                 finish();
         }
-
     }
 
     @Override
@@ -428,7 +437,7 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
             startForegroundService(serviceIntent);
         } else {
             startService(serviceIntent);
-        }                          
+        }
 
         try {
             // Use app-specific external directory instead of public external storage
@@ -529,6 +538,11 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
         isBlankScreenActive = true;
 
+        // IMPORTANT: Stop camera before blanking to prevent surface issues
+        if (mFragmentCamera != null) {
+            mFragmentCamera.stopCamera();
+        }
+
         // Hide all UI elements except camera
         findViewById(R.id.buttonBar).setVisibility(View.GONE);
         findViewById(R.id.timer_container).setVisibility(View.GONE);
@@ -571,7 +585,7 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
         rootView.addView(blankOverlay);
         blankOverlay.setTag("blank_overlay");
 
-        Log.d("MonitorActivity", "Screen blanked - camera still active. Double-tap to restore.");
+        Log.d("MonitorActivity", "Screen blanked - camera stopped to prevent crashes. Double-tap to restore.");
 
         // Show brief instruction
         Toast.makeText(this, "Double-tap to restore screen", Toast.LENGTH_LONG).show();
@@ -604,7 +618,12 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
         params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
         getWindow().setAttributes(params);
 
-        Log.d("MonitorActivity", "Screen restored");
+        // IMPORTANT: Restart camera after unblanking if monitoring is active
+        if (mIsMonitoring && mFragmentCamera != null) {
+            mFragmentCamera.initCamera();
+        }
+
+        Log.d("MonitorActivity", "Screen restored and camera restarted");
     }
 
     private void showTemporaryStatus() {

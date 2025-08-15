@@ -110,8 +110,17 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
     @Override
     protected void onResume() {
         super.onResume();
-        initWave();
-        startAccel();
+        checkSensorPermissionsAndStart();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Stop accelerometer when pausing
+        SensorManager sensorMgr = (SensorManager) getSystemService(SENSOR_SERVICE);
+        if (sensorMgr != null) {
+            sensorMgr.unregisterListener(this);
+        }
     }
     private void checkSensorPermissionsAndStart() {
         // For Android 12+, check HIGH_SAMPLING_RATE_SENSORS

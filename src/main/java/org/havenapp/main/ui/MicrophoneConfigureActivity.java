@@ -73,6 +73,26 @@ public class MicrophoneConfigureActivity extends AppCompatActivity implements Mi
 
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Restart microphone when resuming
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            startMic();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Stop microphone when pausing
+        if (microphone != null) {
+            microphone.cancel(true);
+            microphone = null;
+        }
+    }
+
+
     private void initWave() {
         mWaveAmpList = new LinkedList<>();
 

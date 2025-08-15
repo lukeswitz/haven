@@ -70,17 +70,27 @@ public class AudioRecorderTask extends Thread {
 		this.context = context;
 		this.prefs = new PreferenceManager(context);
 		Log.i("AudioRecorderTask", "Created recorder");
-		
-		File fileFolder = new File(Environment.getExternalStorageDirectory().getPath(), prefs.getDefaultMediaStoragePath());
 
+		// This avoids permission issues and ensures directory creation works
+		File fileFolder = new File(context.getExternalFilesDir(null), prefs.getDefaultMediaStoragePath());
+
+		// Ensure the complete directory structure is created
 		if (!fileFolder.exists()) {
 			boolean created = fileFolder.mkdirs();
 			if (!created) {
-				Log.e("AudioRecorderTask", "Failed to create directory: " + fileFolder.getAbsolutePath());
+				Log.e("AudioRecorderTask", "FAILED to create directory: " + fileFolder.getAbsolutePath());
+				// Fallback: create just the base directory
+				File fallbackDir = new File(context.getExternalFilesDir(null), "haven");
+				fallbackDir.mkdirs();
+				fileFolder = fallbackDir;
+			} else {
+				Log.i("AudioRecorderTask", "Successfully created directory: " + fileFolder.getAbsolutePath());
 			}
 		}
 
 		audioPath = new File(fileFolder, new SimpleDateFormat(Utils.DATE_TIME_PATTERN, Locale.getDefault()).format(new Date()) + ".m4a");
+
+		Log.i("AudioRecorderTask", "Audio will be saved to: " + audioPath.getAbsolutePath());
 	}
 	
 	@Override

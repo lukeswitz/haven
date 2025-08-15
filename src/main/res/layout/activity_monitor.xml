@@ -10,6 +10,14 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
+        <!-- Blackout overlay (initially hidden) -->
+        <View
+            android:id="@+id/blackoutOverlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#FF000000"
+            android:visibility="gone" />
+
         <fragment
             android:id="@+id/fragment_camera"
             class="org.havenapp.main.ui.CameraFragment"
@@ -56,6 +64,20 @@
                 android:textColor="@color/colorPrimaryDark"
                 android:textSize="25sp"
                 android:textStyle="bold" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnBlankScreen"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp"
+                android:background="@drawable/fill_drawable_accent"
+                android:padding="6dp"
+                android:text="Blank Screen"
+                android:textColor="@color/colorPrimaryDark"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
 
             <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btnStartLater"

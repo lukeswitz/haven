@@ -31,6 +31,9 @@ public final class CameraFragment extends Fragment {
     private CameraViewHolder cameraViewHolder;
     private ImageView newImage;
     private PreferenceManager prefs;
+    private boolean isInInvisibleMode = false;
+
+
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -75,8 +78,38 @@ public final class CameraFragment extends Fragment {
         }
     }
 
-    public void stopCamera ()
-    {
+    public void switchToInvisibleMode() {
+        if (cameraViewHolder != null && !isInInvisibleMode) {
+            // Hide the CameraView but keep it in the layout
+            View cameraView = getView().findViewById(R.id.camera_view);
+            if (cameraView != null) {
+                cameraView.setVisibility(View.INVISIBLE);
+                // Set size to 1x1 to minimize resources
+                ViewGroup.LayoutParams params = cameraView.getLayoutParams();
+                params.width = 1;
+                params.height = 1;
+                cameraView.setLayoutParams(params);
+            }
+            isInInvisibleMode = true;
+        }
+    }
+
+    public void switchToVisibleMode() {
+        if (cameraViewHolder != null && isInInvisibleMode) {
+            View cameraView = getView().findViewById(R.id.camera_view);
+            if (cameraView != null) {
+                cameraView.setVisibility(View.VISIBLE);
+                // Restore full size
+                ViewGroup.LayoutParams params = cameraView.getLayoutParams();
+                params.width = ViewGroup.LayoutParams.MATCH_PARENT;
+                params.height = ViewGroup.LayoutParams.MATCH_PARENT;
+                cameraView.setLayoutParams(params);
+            }
+            isInInvisibleMode = false;
+        }
+    }
+
+    public void stopCamera() {
         if (cameraViewHolder != null) {
             cameraViewHolder.stopCamera();
         }

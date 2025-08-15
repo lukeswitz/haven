@@ -18,6 +18,7 @@ package org.havenapp.main;
 
 import android.Manifest;
 import android.animation.ValueAnimator;
+import android.app.AlertDialog;
 import android.app.PictureInPictureParams;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -26,6 +27,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
@@ -33,9 +35,13 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
@@ -58,6 +64,7 @@ import java.io.IOException;
 import java.util.Date;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.AppCompatButton;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
@@ -86,6 +93,9 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     private TextView txtStatus;
 
     private int lastEventType = -1;
+
+    AppCompatButton btnBlankScreen;
+    private boolean isBlankScreenActive = false;
 
     /**
      * Looper used to update back the UI after motion detection
@@ -156,6 +166,9 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
         initSetupLayout();
 
+        // Move this AFTER initSetupLayout() since it calls setContentView()
+        findViewById(R.id.btnBlankScreen).setOnClickListener(v -> blankScreen());
+
         // Check if service is already running
         if (MonitorService.getInstance() != null && MonitorService.getInstance().isRunning()) {
             initActiveLayout();
@@ -163,6 +176,16 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
         // Request permissions after UI is set up
         askForPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, 1);
+    }
+
+    private void requestOverlayPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getPackageName()));
+                startActivityForResult(intent, 1234); // Use any request code
+            }
+        }
     }
 
     private void initActiveLayout() {
@@ -176,10 +199,35 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
         mIsMonitoring = true;
     }
 
+    private void updateBlankScreenButton() {
+        if (btnBlankScreen != null) {
+            if (mIsMonitoring) {
+                btnBlankScreen.setVisibility(View.VISIBLE);
+            } else {
+                btnBlankScreen.setVisibility(View.GONE);
+            }
+        }
+    }
     private void initSetupLayout() {
+        setContentView(R.layout.activity_monitor);
+
+        // Blank button
+        btnBlankScreen = findViewById(R.id.btnBlankScreen);
+
+        if (btnBlankScreen != null) {
+            btnBlankScreen.setOnClickListener(v -> {
+                blankScreen();
+                btnBlankScreen.setVisibility(View.GONE);
+            });
+        } else {
+            Log.e("MonitorActivity", "btnBlankScreen not found in layout");
+        }
+
+        updateBlankScreenButton();
+
         Log.d("MonitorActivity", "initSetupLayout called");
         preferences = new PreferenceManager(getApplicationContext());
-        setContentView(R.layout.activity_monitor);
+
         Log.d("MonitorActivity", "setContentView called");
 
         // Make fragment visible BEFORE any camera operations
@@ -279,10 +327,10 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
         if (mIsMonitoring) {
             mIsMonitoring = false;
+            btnBlankScreen.setVisibility(View.GONE);
             stopService(new Intent(this, MonitorService.class));
             finish();
         } else {
-
             findViewById(R.id.btnStartNow).setVisibility(View.VISIBLE);
             findViewById(R.id.timer_text_title).setVisibility(View.VISIBLE);
 
@@ -373,6 +421,29 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     private void initMonitor() {
         mIsMonitoring = true;
 
+        btnBlankScreen.setVisibility(View.VISIBLE);
+
+        Intent serviceIntent = new Intent(this, MonitorService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
+
+        // Request overlay permission before starting monitoring
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                // Show dialog explaining why permission is needed
+                new AlertDialog.Builder(this)
+                        .setTitle("Permission Required")
+                        .setMessage("Haven needs permission to display over other apps for background camera monitoring. Please enable this permission in the next screen.")
+                        .setPositiveButton("OK", (dialog, which) -> requestOverlayPermission())
+                        .setNegativeButton("Cancel", null)
+                        .show();
+                return;
+            }
+        }
+
         try {
             // Use app-specific external directory instead of public external storage
             File fileImageDir = new File(getExternalFilesDir(null), preferences.getDefaultMediaStoragePath());
@@ -392,8 +463,6 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
         } catch (IOException e) {
             Log.e("Monitor", "unable to init media storage directory", e);
         }
-
-        startService(new Intent(MonitorActivity.this, MonitorService.class));
     }
 
 
@@ -444,12 +513,12 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     public void onResume() {
         super.onResume();
 
-        // Restart camera when resuming
-        if (mFragmentCamera != null) {
+        // Only restart camera if it was actually stopped (not monitoring)
+        if (!mIsMonitoring && mFragmentCamera != null) {
             mFragmentCamera.initCamera();
         }
 
-        // Handle fragment view access here when view is guaranteed to exist
+        // Rest of existing onResume code...
         if (mFragmentCamera != null && mFragmentCamera.getView() != null) {
             mFragmentCamera.getView().setClickable(false);
             mFragmentCamera.getView().setFocusable(false);
@@ -466,16 +535,115 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
         LocalBroadcastManager.getInstance(this).registerReceiver(receiver, filter);
     }
 
+    private void blankScreen() {
+        if (isBlankScreenActive) {
+            unblankScreen();
+            return;
+        }
+
+        isBlankScreenActive = true;
+
+        // Hide all UI elements except camera
+        findViewById(R.id.buttonBar).setVisibility(View.GONE);
+        findViewById(R.id.timer_container).setVisibility(View.GONE);
+        findViewById(R.id.txtStatus).setVisibility(View.GONE);
+
+        // Set black background
+        getWindow().getDecorView().setBackgroundColor(Color.BLACK);
+
+        // Keep screen on but dimmed
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        WindowManager.LayoutParams params = getWindow().getAttributes();
+        params.screenBrightness = 0.01f; // Almost completely dark
+        getWindow().setAttributes(params);
+
+        // Add invisible tap overlay with proper touch handling
+        View blankOverlay = new View(this);
+        blankOverlay.setBackgroundColor(Color.BLACK);
+
+        // Add gesture detection for double-tap to exit
+        var gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onDoubleTap(MotionEvent e) {
+                unblankScreen();
+                return true;
+            }
+
+            @Override
+            public boolean onSingleTapConfirmed(MotionEvent e) {
+                showTemporaryStatus();
+                return true;
+            }
+        });
+
+        blankOverlay.setOnTouchListener((v, event) -> {
+            gestureDetector.onTouchEvent(event);
+            return true; // Consume all touch events
+        });
+
+        ViewGroup rootView = findViewById(android.R.id.content);
+        rootView.addView(blankOverlay);
+        blankOverlay.setTag("blank_overlay");
+
+        Log.d("MonitorActivity", "Screen blanked - camera still active. Double-tap to restore.");
+
+        // Show brief instruction
+        Toast.makeText(this, "Double-tap to restore screen", Toast.LENGTH_LONG).show();
+    }
+
+    private void unblankScreen() {
+        if (!isBlankScreenActive) return;
+
+        isBlankScreenActive = false;
+
+        // Remove blank overlay
+        ViewGroup rootView = findViewById(android.R.id.content);
+        View overlay = rootView.findViewWithTag("blank_overlay");
+        if (overlay != null) {
+            rootView.removeView(overlay);
+        }
+
+        // Restore UI elements
+        findViewById(R.id.buttonBar).setVisibility(View.VISIBLE);
+        if (mIsMonitoring) {
+            findViewById(R.id.timer_container).setVisibility(View.VISIBLE);
+            findViewById(R.id.txtStatus).setVisibility(View.VISIBLE);
+        }
+
+        // Restore normal background
+        getWindow().getDecorView().setBackgroundColor(Color.TRANSPARENT);
+
+        // Restore normal brightness
+        WindowManager.LayoutParams params = getWindow().getAttributes();
+        params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+        getWindow().setAttributes(params);
+
+        Log.d("MonitorActivity", "Screen restored");
+    }
+
+    private void showTemporaryStatus() {
+        if (!mIsMonitoring) return;
+
+        TextView statusText = findViewById(R.id.txtStatus);
+        statusText.setVisibility(View.VISIBLE);
+        statusText.setText("Monitoring Active - Double-tap to restore");
+
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (isBlankScreenActive && mIsMonitoring) {
+                statusText.setVisibility(View.GONE);
+            }
+        }, 3000);
+    }
+
     @Override
     protected void onPause() {
         super.onPause();
         LocalBroadcastManager.getInstance(this).unregisterReceiver(receiver);
-
-        // Stop camera when pausing to prevent surface issues
-        if (mFragmentCamera != null) {
+        if (!mIsMonitoring && mFragmentCamera != null) {
             mFragmentCamera.stopCamera();
         }
     }
+
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {

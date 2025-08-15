@@ -87,7 +87,7 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
             setTitle(getString(R.string.configure_sensors_title));
         }
 
-        // Initialize UI first
+        // Initialize UI components ONLY
         mTextLevel = findViewById(R.id.text_display_level);
         mNumberTrigger = findViewById(R.id.number_trigger_level);
         mWaveform = findViewById(R.id.simplewaveform);
@@ -105,21 +105,28 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
             mWaveform.setThreshold(newValue);
             mPrefManager.setAccelerometerSensitivity(newValue + "");
         });
+    }
 
-        // Only request motion sensor permission for Android 12+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        initWave();
+        startAccel();
+    }
+    private void checkSensorPermissionsAndStart() {
+        // For Android 12+, check HIGH_SAMPLING_RATE_SENSORS
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.HIGH_SAMPLING_RATE_SENSORS)
                     != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this,
                         new String[]{Manifest.permission.HIGH_SAMPLING_RATE_SENSORS}, 999);
-            } else {
-                initWave();
-                startAccel();
+                return; // Don't start sensors yet
             }
-        } else {
-            initWave();
-            startAccel();
         }
+
+        // Try to access sensors - this will trigger GrapheneOS permission if needed
+        initWave();
+        startAccel();
     }
 
     @Override
@@ -127,7 +134,7 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
         if (requestCode == 999) {
-            // Start accelerometer regardless of permission result
+            // Permission result received, now start sensors
             initWave();
             startAccel();
         }

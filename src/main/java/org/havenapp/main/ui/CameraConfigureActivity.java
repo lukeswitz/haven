@@ -56,7 +56,7 @@ public class CameraConfigureActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        boolean permsNeeded = askForPermission(Manifest.permission.CAMERA, 2); // Change from WRITE_EXTERNAL_STORAGE to CAMERA only
+        boolean permsNeeded = askForPermission(Manifest.permission.CAMERA, 2);
 
         if (!permsNeeded)
             initLayout();
@@ -143,11 +143,12 @@ public class CameraConfigureActivity extends AppCompatActivity {
 
         switch (requestCode) {
             case 2: // CAMERA permission
-                // Permission handled, UI already initialized
+                if (!mIsInitializedLayout) {
+                    initLayout();
+                }
                 break;
         }
     }
-
 
     private boolean askForPermission(String permission, Integer requestCode) {
         if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {

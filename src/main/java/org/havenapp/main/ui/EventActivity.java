@@ -6,12 +6,15 @@ import android.os.Bundle;
 import android.os.StrictMode;
 import android.text.TextUtils;
 import android.view.MenuItem;
+import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.bumptech.glide.Glide;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
-import com.stfalcon.frescoimageviewer.ImageViewer;
+import com.stfalcon.imageviewer.StfalconImageViewer;
+import com.stfalcon.imageviewer.loader.ImageLoader;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.havenapp.main.R;
@@ -30,6 +33,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -245,11 +249,17 @@ public class EventActivity extends AppCompatActivity implements EventTriggerAdap
         int startPosition = getPositionOfImagePath(position);
 
         ShareOverlayView overlayView = new ShareOverlayView(this);
-        ImageViewer viewer = new ImageViewer.Builder<>(this, eventTriggerImagePaths)
-                .setStartPosition(startPosition)
-                .setOverlayView(overlayView)
+        StfalconImageViewer<Uri> viewer = new StfalconImageViewer.Builder<>(this, eventTriggerImagePaths, new ImageLoader<Uri>() {
+            @Override
+            public void loadImage(ImageView imageView, Uri imageUri) {
+                Glide.with(EventActivity.this)
+                        .load(imageUri)
+                        .into(imageView);
+            }
+        })
+                .withStartPosition(startPosition)
+                .withOverlayView(overlayView)
                 .show();
-        overlayView.setImageViewer(viewer);
     }
 
     @Override

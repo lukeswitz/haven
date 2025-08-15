@@ -18,6 +18,7 @@ package org.havenapp.main;
 
 import android.Manifest;
 import android.animation.ValueAnimator;
+import android.app.AlertDialog;
 import android.app.PictureInPictureParams;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -26,6 +27,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
@@ -33,9 +35,13 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
@@ -55,8 +61,10 @@ import org.havenapp.main.ui.MicrophoneConfigureActivity;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Date;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.AppCompatButton;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
@@ -85,6 +93,9 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     private TextView txtStatus;
 
     private int lastEventType = -1;
+
+    AppCompatButton btnBlankScreen;
+    private boolean isBlankScreenActive = false;
 
     /**
      * Looper used to update back the UI after motion detection
@@ -153,37 +164,28 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        boolean permsNeeded = askForPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, 1);
+        initSetupLayout();
 
-        if (!permsNeeded) {
+        // Move this AFTER initSetupLayout() since it calls setContentView()
+        findViewById(R.id.btnBlankScreen).setOnClickListener(v -> blankScreen());
 
-            initSetupLayout();
-
-            if (MonitorService.getInstance() != null)
-                if (MonitorService.getInstance().isRunning())
-                    initActiveLayout();
-
+        // Check if service is already running
+        if (MonitorService.getInstance() != null && MonitorService.getInstance().isRunning()) {
+            initActiveLayout();
         }
 
-        /* AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setMessage("Would you like to disable the feature that keeps the screen always on?")
-                .setPositiveButton("Yes", (dialog, id) -> {
-                    // Remove the FLAG_KEEP_SCREEN_ON flag
-                    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                })
-                .setNegativeButton("No", (dialog, id) -> {
-                    // Do nothing, keep the screen always on
-                    //Ensure the screen is not able to sleep
-                    getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
-                            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
-                            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
-                });
+        // Request permissions after UI is set up
+        askForPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, 1);
+    }
 
-        AlertDialog dialog = builder.create();
-        dialog.show();
-        */
-         
-
+    private void requestOverlayPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getPackageName()));
+                startActivityForResult(intent, 1234); // Use any request code
+            }
+        }
     }
 
     private void initActiveLayout() {
@@ -197,9 +199,39 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
         mIsMonitoring = true;
     }
 
+    private void updateBlankScreenButton() {
+        if (btnBlankScreen != null) {
+            if (mIsMonitoring) {
+                btnBlankScreen.setVisibility(View.VISIBLE);
+            } else {
+                btnBlankScreen.setVisibility(View.GONE);
+            }
+        }
+    }
     private void initSetupLayout() {
-        preferences = new PreferenceManager(getApplicationContext());
         setContentView(R.layout.activity_monitor);
+
+        // Blank button
+        btnBlankScreen = findViewById(R.id.btnBlankScreen);
+
+        if (btnBlankScreen != null) {
+            btnBlankScreen.setOnClickListener(v -> {
+                blankScreen();
+                btnBlankScreen.setVisibility(View.GONE);
+            });
+        } else {
+            Log.e("MonitorActivity", "btnBlankScreen not found in layout");
+        }
+
+        updateBlankScreenButton();
+
+        Log.d("MonitorActivity", "initSetupLayout called");
+        preferences = new PreferenceManager(getApplicationContext());
+
+        Log.d("MonitorActivity", "setContentView called");
+
+        // Make fragment visible BEFORE any camera operations
+        findViewById(R.id.fragment_camera).setVisibility(View.VISIBLE);
 
         txtTimer = (TextView) findViewById(R.id.timer_text);
         View viewTimer = findViewById(R.id.timer_container);
@@ -210,17 +242,20 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
         txtTimer.setOnClickListener(v -> {
             if (cTimer == null)
                 showTimeDelayDialog();
-
         });
+
         findViewById(R.id.timer_text_title).setOnClickListener(v -> {
             if (cTimer == null)
                 showTimeDelayDialog();
-
         });
 
-        findViewById(R.id.btnStartLater).setOnClickListener(v -> doCancel());
+        findViewById(R.id.btnStartLater).setOnClickListener(v -> {
+            Log.d("MonitorActivity", "Start Later clicked");
+            doCancel();
+        });
 
         findViewById(R.id.btnStartNow).setOnClickListener(v -> {
+            Log.d("MonitorActivity", "Start Now clicked");
             ((Button) findViewById(R.id.btnStartLater)).setText(R.string.action_cancel);
             findViewById(R.id.btnStartNow).setVisibility(View.INVISIBLE);
             findViewById(R.id.timer_text_title).setVisibility(View.INVISIBLE);
@@ -229,37 +264,46 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
         mBtnAccel = findViewById(R.id.btnAccelSettings);
         mBtnAccel.setOnClickListener(v -> {
+            Log.d("MonitorActivity", "Accel button clicked");
             if (!mIsMonitoring)
                 startActivity(new Intent(MonitorActivity.this, AccelConfigureActivity.class));
         });
 
         mBtnMic = findViewById(R.id.btnMicSettings);
         mBtnMic.setOnClickListener(v -> {
+            Log.d("MonitorActivity", "Mic button clicked");
             if (!mIsMonitoring)
                 startActivity(new Intent(MonitorActivity.this, MicrophoneConfigureActivity.class));
         });
 
         mBtnCamera = findViewById(R.id.btnCameraSwitch);
         mBtnCamera.setOnClickListener(v -> {
+            Log.d("MonitorActivity", "Camera button clicked");
             if (!mIsMonitoring)
                 configCamera();
         });
 
-        findViewById(R.id.btnSettings).setOnClickListener(v -> showSettings());
+        findViewById(R.id.btnSettings).setOnClickListener(v -> {
+            Log.d("MonitorActivity", "Settings button clicked");
+            showSettings();
+        });
 
-        mFragmentCamera =  ((CameraFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_camera));
+        mFragmentCamera = ((CameraFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_camera));
+
+        // remove fragment, do this in onResume instead
 
         txtStatus = findViewById(R.id.txtStatus);
-
         mAnimShake = AnimationUtils.loadAnimation(this, R.anim.shake);
-
         mIsInitializedLayout = true;
     }
 
     private void configCamera() {
+        // Stop camera BEFORE launching config activity
+        if (mFragmentCamera != null) {
+            mFragmentCamera.stopCamera();
+        }
 
-        mFragmentCamera.stopCamera();
-        startActivityForResult(new Intent(this, CameraConfigureActivity.class),REQUEST_CAMERA);
+        startActivityForResult(new Intent(this, CameraConfigureActivity.class), REQUEST_CAMERA);
     }
 
 
@@ -271,8 +315,12 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     }
 
     private void doCancel() {
-
         boolean wasTimer = false;
+
+        // If screen is blanked, unblank it first to ensure proper cleanup
+        if (isBlankScreenActive) {
+            unblankScreen();
+        }
 
         if (cTimer != null) {
             cTimer.cancel();
@@ -283,10 +331,16 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
         if (mIsMonitoring) {
             mIsMonitoring = false;
+            btnBlankScreen.setVisibility(View.GONE);
+
+            // Ensure camera is stopped before stopping service
+            if (mFragmentCamera != null) {
+                mFragmentCamera.stopCamera();
+            }
+
             stopService(new Intent(this, MonitorService.class));
             finish();
         } else {
-
             findViewById(R.id.btnStartNow).setVisibility(View.VISIBLE);
             findViewById(R.id.timer_text_title).setVisibility(View.VISIBLE);
 
@@ -298,7 +352,6 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
             if (!wasTimer)
                 finish();
         }
-
     }
 
     @Override
@@ -335,63 +388,76 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
-        if (requestCode == REQUEST_TIMER) {
-            initTimer();
-        }
-        else if (requestCode == REQUEST_CAMERA)
-        {
-            mFragmentCamera.initCamera();
+        if (requestCode == REQUEST_CAMERA) {
+            // Restart camera after config
+            if (mFragmentCamera != null) {
+                mFragmentCamera.initCamera();
+            }
         }
     }
 
     @Override
     protected void onDestroy() {
-        if (!mIsMonitoring)
-        {
+        if (!mIsMonitoring && mFragmentCamera != null) {
             mFragmentCamera.stopCamera();
         }
+        // Don't stop the service here if monitoring is active
         super.onDestroy();
     }
 
     private void initTimer() {
         txtTimer.setTextColor(getResources().getColor(R.color.colorAccent));
-        cTimer = new CountDownTimer((preferences.getTimerDelay()) * 1000, 1000) {
 
+        // Set the session before starting the timer
+        preferences.setCurrentSession(new Date(System.currentTimeMillis()));
+
+        cTimer = new CountDownTimer((preferences.getTimerDelay()) * 1000L, 1000) {
             public void onTick(long millisUntilFinished) {
                 mOnTimerTicking = true;
                 txtTimer.setText(getTimerText(millisUntilFinished));
             }
 
             public void onFinish() {
-
                 txtTimer.setText(R.string.status_on);
                 initMonitor();
                 mOnTimerTicking = false;
             }
-
         };
 
         cTimer.start();
-
-
     }
 
     private void initMonitor() {
-
         mIsMonitoring = true;
-        //ensure folder exists and will not be scanned by the gallery app
+
+        btnBlankScreen.setVisibility(View.VISIBLE);
+
+        Intent serviceIntent = new Intent(this, MonitorService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
 
         try {
-            File fileImageDir = new File(Environment.getExternalStorageDirectory(), preferences.getDefaultMediaStoragePath());
-            fileImageDir.mkdirs();
-            new FileOutputStream(new File(fileImageDir, ".nomedia")).write(0);
+            // Use app-specific external directory instead of public external storage
+            File fileImageDir = new File(getExternalFilesDir(null), preferences.getDefaultMediaStoragePath());
+
+            // More robust directory creation
+            if (!fileImageDir.exists()) {
+                boolean created = fileImageDir.mkdirs();
+                if (!created) {
+                    Log.e("Monitor", "Failed to create directory: " + fileImageDir.getAbsolutePath());
+                }
+            }
+
+            File nomediaFile = new File(fileImageDir, ".nomedia");
+            if (!nomediaFile.exists()) {
+                nomediaFile.createNewFile();
+            }
         } catch (IOException e) {
             Log.e("Monitor", "unable to init media storage directory", e);
         }
-
-        //Do something after 100ms
-        startService(new Intent(MonitorActivity.this, MonitorService.class));
-
     }
 
 
@@ -441,6 +507,19 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
     @Override
     public void onResume() {
         super.onResume();
+
+        // Only restart camera if it was actually stopped (not monitoring)
+        if (!mIsMonitoring && mFragmentCamera != null) {
+            mFragmentCamera.initCamera();
+        }
+
+        // Rest of existing onResume code...
+        if (mFragmentCamera != null && mFragmentCamera.getView() != null) {
+            mFragmentCamera.getView().setClickable(false);
+            mFragmentCamera.getView().setFocusable(false);
+            Log.d("MonitorActivity", "Fragment view configured");
+        }
+
         if (mIsInitializedLayout && (!mOnTimerTicking) && (!mIsMonitoring)) {
             int totalMilliseconds = preferences.getTimerDelay() * 1000;
             txtTimer.setText(getTimerText(totalMilliseconds));
@@ -448,16 +527,128 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
 
         IntentFilter filter = new IntentFilter();
         filter.addAction("event");
-        LocalBroadcastManager.getInstance(this).registerReceiver(receiver,filter );
+        LocalBroadcastManager.getInstance(this).registerReceiver(receiver, filter);
+    }
 
+    private void blankScreen() {
+        if (isBlankScreenActive) {
+            unblankScreen();
+            return;
+        }
+
+        isBlankScreenActive = true;
+
+        // IMPORTANT: Stop camera before blanking to prevent surface issues
+        if (mFragmentCamera != null) {
+            mFragmentCamera.stopCamera();
+        }
+
+        // Hide all UI elements except camera
+        findViewById(R.id.buttonBar).setVisibility(View.GONE);
+        findViewById(R.id.timer_container).setVisibility(View.GONE);
+        findViewById(R.id.txtStatus).setVisibility(View.GONE);
+
+        // Set black background
+        getWindow().getDecorView().setBackgroundColor(Color.BLACK);
+
+        // Keep screen on but dimmed
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        WindowManager.LayoutParams params = getWindow().getAttributes();
+        params.screenBrightness = 0.01f; // Almost completely dark
+        getWindow().setAttributes(params);
+
+        // Add invisible tap overlay with proper touch handling
+        View blankOverlay = new View(this);
+        blankOverlay.setBackgroundColor(Color.BLACK);
+
+        // Add gesture detection for double-tap to exit
+        var gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onDoubleTap(MotionEvent e) {
+                unblankScreen();
+                return true;
+            }
+
+            @Override
+            public boolean onSingleTapConfirmed(MotionEvent e) {
+                showTemporaryStatus();
+                return true;
+            }
+        });
+
+        blankOverlay.setOnTouchListener((v, event) -> {
+            gestureDetector.onTouchEvent(event);
+            return true; // Consume all touch events
+        });
+
+        ViewGroup rootView = findViewById(android.R.id.content);
+        rootView.addView(blankOverlay);
+        blankOverlay.setTag("blank_overlay");
+
+        Log.d("MonitorActivity", "Screen blanked - camera stopped to prevent crashes. Double-tap to restore.");
+
+        // Show brief instruction
+        Toast.makeText(this, "Double-tap to restore screen", Toast.LENGTH_LONG).show();
+    }
+
+    private void unblankScreen() {
+        if (!isBlankScreenActive) return;
+
+        isBlankScreenActive = false;
+
+        // Remove blank overlay
+        ViewGroup rootView = findViewById(android.R.id.content);
+        View overlay = rootView.findViewWithTag("blank_overlay");
+        if (overlay != null) {
+            rootView.removeView(overlay);
+        }
+
+        // Restore UI elements
+        findViewById(R.id.buttonBar).setVisibility(View.VISIBLE);
+        if (mIsMonitoring) {
+            findViewById(R.id.timer_container).setVisibility(View.VISIBLE);
+            findViewById(R.id.txtStatus).setVisibility(View.VISIBLE);
+        }
+
+        // Restore normal background
+        getWindow().getDecorView().setBackgroundColor(Color.TRANSPARENT);
+
+        // Restore normal brightness
+        WindowManager.LayoutParams params = getWindow().getAttributes();
+        params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+        getWindow().setAttributes(params);
+
+        // IMPORTANT: Restart camera after unblanking if monitoring is active
+        if (mIsMonitoring && mFragmentCamera != null) {
+            mFragmentCamera.initCamera();
+        }
+
+        Log.d("MonitorActivity", "Screen restored and camera restarted");
+    }
+
+    private void showTemporaryStatus() {
+        if (!mIsMonitoring) return;
+
+        TextView statusText = findViewById(R.id.txtStatus);
+        statusText.setVisibility(View.VISIBLE);
+        statusText.setText("Monitoring Active - Double-tap to restore");
+
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (isBlankScreenActive && mIsMonitoring) {
+                statusText.setVisibility(View.GONE);
+            }
+        }, 3000);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         LocalBroadcastManager.getInstance(this).unregisterReceiver(receiver);
-
+        if (!mIsMonitoring && mFragmentCamera != null) {
+            mFragmentCamera.stopCamera();
+        }
     }
+
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
@@ -468,10 +659,9 @@ public class MonitorActivity extends AppCompatActivity implements TimePickerDial
                 askForPermission(Manifest.permission.CAMERA, 2);
                 break;
             case 2:
-                initSetupLayout();
+                // Permissions done - UI is already initialized
                 break;
         }
-
     }
 
 

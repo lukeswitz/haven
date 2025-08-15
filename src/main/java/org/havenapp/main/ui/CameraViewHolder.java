@@ -27,7 +27,9 @@ import android.view.Surface;
 
 import androidx.annotation.NonNull;
 
+import com.otaliastudios.cameraview.CameraListener;
 import com.otaliastudios.cameraview.CameraView;
+import com.otaliastudios.cameraview.PictureResult;
 import com.otaliastudios.cameraview.controls.Facing;
 import com.otaliastudios.cameraview.frame.Frame;
 import com.otaliastudios.cameraview.frame.FrameProcessor;
@@ -134,13 +136,18 @@ public class CameraViewHolder {
                 motionSensitivity);
 
         motionDetector.addListener((detectedImage, rawBitmap, motionDetected) -> {
-
             for (MotionDetector.MotionListener listener : listeners)
-                listener.onProcess(detectedImage,rawBitmap,motionDetected);
+                listener.onProcess(detectedImage, rawBitmap, motionDetected);
 
-            if (motionDetected)
-                mEncodeThreadPool.execute(() -> saveDetectedImage(rawBitmap));
+            if (motionDetected) {
+                // Take a properly oriented still image
+                cameraView.takePicture();
 
+                // Take video if enabled
+                if (prefs.getVideoMonitoringActive() && (!doingVideoProcessing)) {
+                    recordVideo();
+                }
+            }
         });
 	/*
 		 * We bind to the alert service
@@ -149,41 +156,42 @@ public class CameraViewHolder {
                 MonitorService.class), mConnection, Context.BIND_ABOVE_CLIENT);
 	}
 
-	private void saveDetectedImage (Bitmap rawBitmap)
-    {
-        if (serviceMessenger != null) {
-            Message message = new Message();
-            message.what = EventTrigger.CAMERA;
 
-            try {
-
-                File fileImageDir = new File(this.context.getExternalFilesDir(null), prefs.getDefaultMediaStoragePath());
-                fileImageDir.mkdirs();
-
-                String ts = new SimpleDateFormat(Utils.DATE_TIME_PATTERN,
-                        Locale.getDefault()).format(new Date());
-
-                File fileImage = new File(fileImageDir, ts.concat(".detected.original.jpg"));
-                FileOutputStream stream = new FileOutputStream(fileImage);
-                rawBitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream);
-
-                stream.flush();
-                stream.close();
-                message.getData().putString(MonitorService.KEY_PATH, fileImage.getAbsolutePath());
-
-                //store the still match frame, even if doing video
-                serviceMessenger.send(message);
-
-                if (prefs.getVideoMonitoringActive() && (!doingVideoProcessing)) {
-                    recordVideo();
-                }
-
-            } catch (Exception e) {
-                // Cannot happen
-                Log.e("CameraViewHolder", "error creating image", e);
-            }
-        }
-    }
+//	private void saveDetectedImage (Bitmap rawBitmap)
+//    {
+//        if (serviceMessenger != null) {
+//            Message message = new Message();
+//            message.what = EventTrigger.CAMERA;
+//
+//            try {
+//
+//                File fileImageDir = new File(this.context.getExternalFilesDir(null), prefs.getDefaultMediaStoragePath());
+//                fileImageDir.mkdirs();
+//
+//                String ts = new SimpleDateFormat(Utils.DATE_TIME_PATTERN,
+//                        Locale.getDefault()).format(new Date());
+//
+//                File fileImage = new File(fileImageDir, ts.concat(".detected.original.jpg"));
+//                FileOutputStream stream = new FileOutputStream(fileImage);
+//                rawBitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream);
+//
+//                stream.flush();
+//                stream.close();
+//                message.getData().putString(MonitorService.KEY_PATH, fileImage.getAbsolutePath());
+//
+//                //store the still match frame, even if doing video
+//                serviceMessenger.send(message);
+//
+//                if (prefs.getVideoMonitoringActive() && (!doingVideoProcessing)) {
+//                    recordVideo();
+//                }
+//
+//            } catch (Exception e) {
+//                // Cannot happen
+//                Log.e("CameraViewHolder", "error creating image", e);
+//            }
+//        }
+//    }
 
 	public void setMotionSensitivity (int
 				motionSensitivity )
@@ -245,6 +253,34 @@ public class CameraViewHolder {
             }
         });
 
+        cameraView.addCameraListener(new CameraListener() {
+            @Override
+            public void onPictureTaken(@NonNull PictureResult result) {
+                if (serviceMessenger != null) {
+                    Message message = new Message();
+                    message.what = EventTrigger.CAMERA;
+
+                    try {
+                        File fileImageDir = new File(context.getExternalFilesDir(null), prefs.getDefaultMediaStoragePath());
+                        fileImageDir.mkdirs();
+
+                        String ts = new SimpleDateFormat(Utils.DATE_TIME_PATTERN, Locale.getDefault()).format(new Date());
+                        File fileImage = new File(fileImageDir, ts.concat(".detected.jpg"));
+
+                        // Save byte array directly - preserves EXIF orientation
+                        FileOutputStream stream = new FileOutputStream(fileImage);
+                        stream.write(result.getData());
+                        stream.close();
+
+                        message.getData().putString(MonitorService.KEY_PATH, fileImage.getAbsolutePath());
+                        serviceMessenger.send(message);
+
+                    } catch (Exception e) {
+                        Log.e("CameraViewHolder", "error saving picture", e);
+                    }
+                }
+            }
+        });
 
     }
 
@@ -329,10 +365,18 @@ public class CameraViewHolder {
 	        return false;
         String ts1 = new SimpleDateFormat(Utils.DATE_TIME_PATTERN,
                 Locale.getDefault()).format(new Date());
-        File fileStoragePath = new File(Environment.getExternalStorageDirectory(),prefs.getDefaultMediaStoragePath());
-        fileStoragePath.mkdirs();
 
-        videoFile =  new File(fileStoragePath, ts1 + ".mp4");
+    // Use context's external files directory instead of deprecated Environment.getExternalStorageDirectory()
+        File fileStoragePath = new File(context.getExternalFilesDir(null), prefs.getDefaultMediaStoragePath());
+        if (!fileStoragePath.exists()) {
+            boolean created = fileStoragePath.mkdirs();
+            if (!created) {
+                Log.e("CameraViewHolder", "Failed to create directory: " + fileStoragePath.getAbsolutePath());
+                return false;
+            }
+        }
+
+        videoFile = new File(fileStoragePath, ts1 + ".mp4");
 
 	// jcodec encoding replaced by CameraView's android system encoding.
 

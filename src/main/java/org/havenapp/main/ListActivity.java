@@ -289,7 +289,14 @@ public class ListActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         resourceManager = new ResourceManager(this);
-        HavenEventDB.getDatabase(this).getEventDAO().count().observe(this, eventCountObserver);
+
+        // Force refresh the adapter when resuming
+        if (eventListLD != null) {
+            eventListLD.removeObservers(this);
+            fetchEventList();
+        }
+
+        HavenEventDB.getDatabase(getApplicationContext()).getEventDAO().count().observe(this, eventCountObserver);
     }
 
     private void showOnboarding()
@@ -297,7 +304,6 @@ public class ListActivity extends AppCompatActivity {
         startActivityForResult(new Intent(this, PPAppIntro.class),REQUEST_CODE_INTRO);
 
     }
-
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {

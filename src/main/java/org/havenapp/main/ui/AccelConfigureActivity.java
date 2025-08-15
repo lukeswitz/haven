@@ -1,27 +1,31 @@
 package org.havenapp.main.ui;
 
-import android.graphics.Canvas;
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.PorterDuff;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MenuItem;
 import android.widget.TextView;
 
-import com.maxproj.simplewaveform.SimpleWaveform;
-
 import org.havenapp.main.PreferenceManager;
 import org.havenapp.main.R;
 
-import java.util.LinkedList;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+import com.masoudss.lib.SeekBarOnProgressChanged;
 import me.angrybyte.numberpicker.view.ActualNumberPicker;
 
 public class AccelConfigureActivity extends AppCompatActivity implements SensorEventListener {
@@ -30,9 +34,10 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
     private ActualNumberPicker mNumberTrigger;
     private PreferenceManager mPrefManager;
     private SimpleWaveformExtended mWaveform;
-    private LinkedList<Integer> mWaveAmpList;
+    private List<Integer> mWaveAmpList;
 
     private static final int MAX_SLIDER_VALUE = 100;
+    private static final int MAX_SAMPLES = 50; // Limit the number of samples
 
     private double maxAmp = 0;
 
@@ -51,11 +56,9 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
      */
     private float last_accel_values[];
 
-
-    private float mAccelCurrent =  SensorManager.GRAVITY_EARTH;
+    private float mAccelCurrent = SensorManager.GRAVITY_EARTH;
     private float mAccelLast = SensorManager.GRAVITY_EARTH;
     private float mAccel = 0.00f;
-
 
     /**
      * Text showing accelerometer values
@@ -64,7 +67,6 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
     private int remainingAlertPeriod = 0;
     private boolean alert = false;
     private final static int CHECK_INTERVAL = 100;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,9 +77,17 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        setTitle("");
+        // Configure the back button properly
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        getSupportActionBar().setDisplayShowHomeEnabled(true);
 
+        // Check if this was launched from onboarding
+        boolean fromOnboarding = getIntent().getBooleanExtra("from_onboarding", false);
+        if (fromOnboarding) {
+            setTitle(getString(R.string.configure_sensors_title));
+        }
+
+        // Initialize UI components ONLY
         mTextLevel = findViewById(R.id.text_display_level);
         mNumberTrigger = findViewById(R.id.number_trigger_level);
         mWaveform = findViewById(R.id.simplewaveform);
@@ -93,108 +103,113 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
 
         mNumberTrigger.setListener((oldValue, newValue) -> {
             mWaveform.setThreshold(newValue);
-            mPrefManager.setAccelerometerSensitivity(newValue+"");
+            mPrefManager.setAccelerometerSensitivity(newValue + "");
         });
+    }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        checkSensorPermissionsAndStart();
+    }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Stop accelerometer when pausing
+        SensorManager sensorMgr = (SensorManager) getSystemService(SENSOR_SERVICE);
+        if (sensorMgr != null) {
+            sensorMgr.unregisterListener(this);
+        }
+    }
+    private void checkSensorPermissionsAndStart() {
+        // For Android 12+, check HIGH_SAMPLING_RATE_SENSORS
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.HIGH_SAMPLING_RATE_SENSORS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.HIGH_SAMPLING_RATE_SENSORS}, 999);
+                return; // Don't start sensors yet
+            }
+        }
 
-
+        // Try to access sensors - this will trigger GrapheneOS permission if needed
         initWave();
         startAccel();
     }
 
-    private void initWave ()
-    {
-        mWaveform.init();
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
-        mWaveAmpList = new LinkedList<>();
-
-        mWaveform.setDataList(mWaveAmpList);
-
-        //define bar gap
-        mWaveform.barGap = 30;
-
-        //define x-axis direction
-        mWaveform.modeDirection = SimpleWaveform.MODE_DIRECTION_RIGHT_LEFT;
-
-        //define if draw opposite pole when show bars
-        mWaveform.modeAmp = SimpleWaveform.MODE_AMP_ABSOLUTE;
-        //define if the unit is px or percent of the view's height
-        mWaveform.modeHeight = SimpleWaveform.MODE_HEIGHT_PERCENT;
-        //define where is the x-axis in y-axis
-        mWaveform.modeZero = SimpleWaveform.MODE_ZERO_CENTER;
-        //if show bars?
-        mWaveform.showBar = true;
-
-        //define how to show peaks outline
-        mWaveform.modePeak = SimpleWaveform.MODE_PEAK_ORIGIN;
-        //if show peaks outline?
-        mWaveform.showPeak = true;
-
-        //show x-axis
-        mWaveform.showXAxis = true;
-        Paint xAxisPencil = new Paint();
-        xAxisPencil.setStrokeWidth(1);
-        xAxisPencil.setColor(0x88ffffff);
-        mWaveform.xAxisPencil = xAxisPencil;
-
-        //define pencil to draw bar
-        Paint barPencilFirst = new Paint();
-        Paint barPencilSecond = new Paint();
-        Paint peakPencilFirst = new Paint();
-        Paint peakPencilSecond = new Paint();
-
-        barPencilFirst.setStrokeWidth(15);
-        barPencilFirst.setColor(getResources().getColor(R.color.colorAccent));
-        mWaveform.barPencilFirst = barPencilFirst;
-
-        barPencilFirst.setStrokeWidth(15);
-
-        barPencilSecond.setStrokeWidth(15);
-        barPencilSecond.setColor(getResources().getColor(R.color.colorPrimaryDark));
-        mWaveform.barPencilSecond = barPencilSecond;
-
-        //define pencil to draw peaks outline
-        peakPencilFirst.setStrokeWidth(5);
-        peakPencilFirst.setColor(getResources().getColor(R.color.colorAccent));
-        mWaveform.peakPencilFirst = peakPencilFirst;
-        peakPencilSecond.setStrokeWidth(5);
-        peakPencilSecond.setColor(getResources().getColor(R.color.colorPrimaryDark));
-        mWaveform.peakPencilSecond = peakPencilSecond;
-        mWaveform.firstPartNum = 0;
-
-
-        //define how to clear screen
-        mWaveform.clearScreenListener = new SimpleWaveform.ClearScreenListener() {
-            @Override
-            public void clearScreen(Canvas canvas) {
-                canvas.drawColor(Color.WHITE, PorterDuff.Mode.CLEAR);
-            }
-        };
-
-        //show...
-        mWaveform.refresh();
+        if (requestCode == 999) {
+            // Permission result received, now start sensors
+            initWave();
+            startAccel();
+        }
     }
-    private void startAccel () {
 
-            try {
-
-                SensorManager sensorMgr = (SensorManager) getSystemService(AppCompatActivity.SENSOR_SERVICE);
-                Sensor sensor = sensorMgr.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-
-                if (sensor == null) {
-                    Log.i("AccelerometerFrament", "Warning: no accelerometer");
-                } else {
-                    sensorMgr.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
-
-                }
+    @Override
+    public boolean onSupportNavigateUp() {
+        onBackPressed();
+        return true;
+    }
 
 
-            } catch (Exception e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
+    private void initWave() {
+        mWaveAmpList = new ArrayList<>();
+
+        // Initialize with some default data to prevent crashes
+        for (int i = 0; i < 10; i++) {
+            mWaveAmpList.add(0);
+        }
+
+        // Configure the waveform seekbar with the new API
+        mWaveform.setWaveWidth(15f);
+        mWaveform.setWaveGap(2f);
+        mWaveform.setWaveMinHeight(5f);
+        mWaveform.setWaveCornerRadius(2f);
+        mWaveform.setWaveBackgroundColor(ContextCompat.getColor(this, R.color.colorPrimaryDark));
+        mWaveform.setWaveProgressColor(ContextCompat.getColor(this, R.color.colorAccent));
+        mWaveform.setMaxProgress(100f);
+        mWaveform.setProgress(0f);
+
+        // Set initial sample data
+        updateWaveformSample();
+
+        // Set progress change listener
+        mWaveform.setOnProgressChanged(new SeekBarOnProgressChanged() {
+            @Override
+            public void onProgressChanged(com.masoudss.lib.WaveformSeekBar waveformSeekBar, float progress, boolean fromUser) {
+                // Handle progress changes if needed
             }
+        });
+    }
 
+    private void updateWaveformSample() {
+        // Convert List to int array for the WaveformSeekBar
+        int[] samples = new int[mWaveAmpList.size()];
+        for (int i = 0; i < mWaveAmpList.size(); i++) {
+            samples[i] = mWaveAmpList.get(i);
+        }
+
+        // Set the sample data
+        mWaveform.setSample(samples);
+    }
+
+    private void startAccel() {
+        try {
+            SensorManager sensorMgr = (SensorManager) getSystemService(AppCompatActivity.SENSOR_SERVICE);
+            Sensor sensor = sensorMgr.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+
+            if (sensor == null) {
+                Log.i("AccelerometerFragment", "Warning: no accelerometer");
+            } else {
+                sensorMgr.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public void onSensorChanged(SensorEvent event) {
@@ -214,10 +229,9 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
                 }
 
                 if (last_accel_values != null) {
-
                     mAccelLast = mAccelCurrent;
-                    mAccelCurrent =(float)Math.sqrt(accel_values[0]* accel_values[0] + accel_values[1]*accel_values[1]
-                            + accel_values[2]*accel_values[2]);
+                    mAccelCurrent = (float) Math.sqrt(accel_values[0] * accel_values[0] + accel_values[1] * accel_values[1]
+                            + accel_values[2] * accel_values[2]);
                     float delta = mAccelCurrent - mAccelLast;
                     mAccel = (mAccel * 0.9f + delta);
 
@@ -227,19 +241,21 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
                     }
 
                     if (averageDB > maxAmp) {
-                        maxAmp = averageDB + 5d; //add 5db buffer
+                        maxAmp = averageDB + 5d; // add 5db buffer
                     }
 
-                    mWaveAmpList.addFirst((int)mAccel);
+                    // Add new sample at the beginning
+                    mWaveAmpList.add(0, (int) Math.abs(mAccel * 10)); // Scale for visibility
 
-                    if (mWaveAmpList.size() > mWaveform.width / mWaveform.barGap + 2) {
-                        mWaveAmpList.removeLast();
+                    // Keep only the latest samples
+                    if (mWaveAmpList.size() > MAX_SAMPLES) {
+                        mWaveAmpList = mWaveAmpList.subList(0, MAX_SAMPLES);
                     }
 
-                    mWaveform.refresh();
-                    mTextLevel.setText(getString(R.string.current_accel_base) + " " + (int)mAccel);
+                    // Update the waveform
+                    updateWaveformSample();
 
-
+                    mTextLevel.setText(getString(R.string.current_accel_base) + " " + (int) mAccel);
                 }
                 last_accel_values = accel_values.clone();
             }
@@ -248,18 +264,18 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
-
+        // Not needed for this implementation
     }
-
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-
+        // Unregister sensor listener
+        SensorManager sensorMgr = (SensorManager) getSystemService(SENSOR_SERVICE);
+        if (sensorMgr != null) {
+            sensorMgr.unregisterListener(this);
+        }
     }
-
-
-
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
@@ -276,6 +292,7 @@ public class AccelConfigureActivity extends AppCompatActivity implements SensorE
      */
     @Override
     public void onBackPressed() {
+        super.onBackPressed();
         finish();
     }
 }

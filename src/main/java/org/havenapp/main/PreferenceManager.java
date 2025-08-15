@@ -103,6 +103,7 @@ public class PreferenceManager {
     static final String REMOTE_PHONE_NUMBER = "sms_number";
     static final String REMOTE_NOTIFICATION_ACTIVE = "remote_notification_active";
 
+
     private Context context;
 	
     public PreferenceManager(Context context) {
@@ -120,6 +121,88 @@ public class PreferenceManager {
         prefsEditor.putBoolean(FIRST_LAUNCH, firstLaunch);
         prefsEditor.commit();
     }
+
+    /**
+     * New alert methods, WIP
+     */
+
+    // SMS preferences
+    public boolean getSMSEnabled() {
+        return appSharedPrefs.getBoolean("sms_enabled", false);
+    }
+
+    public void setSMSEnabled(boolean enabled) {
+        prefsEditor.putBoolean("sms_enabled", enabled);
+        prefsEditor.commit();
+    }
+
+    // Matrix preferences
+    public String getMatrixUsername() {
+        return appSharedPrefs.getString("matrix_username", "");
+    }
+
+    public void setMatrixUsername(String username) {
+        prefsEditor.putString("matrix_username", username);
+        prefsEditor.commit();
+    }
+
+    public String getMatrixHomeserver() {
+        return appSharedPrefs.getString("matrix_homeserver", "https://matrix.org");
+    }
+
+    public void setMatrixHomeserver(String homeserver) {
+        prefsEditor.putString("matrix_homeserver", homeserver);
+        prefsEditor.commit();
+    }
+
+    public String getMatrixRoomId() {
+        return appSharedPrefs.getString("matrix_room_id", "");
+    }
+
+    public void setMatrixRoomId(String roomId) {
+        prefsEditor.putString("matrix_room_id", roomId);
+        prefsEditor.commit();
+    }
+
+    public boolean getMatrixEnabled() {
+        return appSharedPrefs.getBoolean("matrix_enabled", false);
+    }
+
+    public void setMatrixEnabled(boolean enabled) {
+        prefsEditor.putBoolean("matrix_enabled", enabled);
+        prefsEditor.commit();
+    }
+
+    // Briar preferences
+    public boolean getBriarEnabled() {
+        return appSharedPrefs.getBoolean("briar_enabled", false);
+    }
+
+    public void setBriarEnabled(boolean enabled) {
+        prefsEditor.putBoolean("briar_enabled", enabled);
+        prefsEditor.commit();
+    }
+
+    // Session preferences
+    public String getSessionId() {
+        return appSharedPrefs.getString("session_id", "");
+    }
+
+    public void setSessionId(String sessionId) {
+        prefsEditor.putString("session_id", sessionId);
+        prefsEditor.commit();
+    }
+
+    public boolean getSessionEnabled() {
+        return appSharedPrefs.getBoolean("session_enabled", false);
+    }
+
+    public void setSessionEnabled(boolean enabled) {
+        prefsEditor.putBoolean("session_enabled", enabled);
+        prefsEditor.commit();
+    }
+
+
 
     /**
      * Returns the Signal username registered. This may not be a good way to check for

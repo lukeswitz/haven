@@ -161,4 +161,27 @@
     <string name="reset_configuration_question">Reset Signal Configuration?</string>
     <string name="reset_configuration_desc">This will clear out all Signal configurations. You will have to register and verify again to use Signal services in the future. Are you sure?</string>
     <string name="run_disk_cleanup">Clean deleted logs from device</string>
+    <!-- Onboarding strings -->
+    <string name="intro_welcome_title">Welcome to Haven</string>
+    <string name="intro_welcome_desc">Turn your device into a personal security system</string>
+    <string name="intro_privacy_title">Your Privacy Matters</string>
+    <string name="intro_sensors_title">Configure Your Sensors</string>
+    <string name="intro_how_it_works">Haven monitors your space using built-in sensors and alerts you to any intrusions</string>
+    <string name="intro_ready_title">Ready to Protect</string>
+    <string name="intro_ready_desc">Your device is now configured to keep your space secure</string>
+
+    <string name="action_configure_sensors">Configure Sensors</string>
+    <string name="start_protecting">Start Protecting</string>
+    <string name="next_step">Next</string>
+    <string name="setup_complete">Setup complete! Haven is ready to protect your space.</string>
+    <string name="invalid_phone_number">Please enter a valid phone number</string>
+
+    <string name="exit_setup_title">Exit Setup?</string>
+    <string name="exit_setup_message">Are you sure you want to exit? Default settings will be used.</string>
+    <string name="continue_setup">Continue Setup</string>
+    <string name="exit_anyway">Exit Anyway</string>
+    <string name="configure_sensors_title">Configure Sensors</string>
+    <string name="sensors_configured">Sensors configured successfully!</string>
+
+
 </resources>

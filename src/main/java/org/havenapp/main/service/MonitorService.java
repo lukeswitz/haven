@@ -11,29 +11,42 @@ package org.havenapp.main.service;
 
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.ServiceInfo;
 import android.graphics.Color;
-import android.net.Uri;
+import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.PowerManager;
-import android.telephony.SmsManager;
+import android.os.SystemClock;
+import android.provider.Settings;
 import android.text.TextUtils;
+import android.util.Log;
+import android.view.Gravity;
+import android.view.SurfaceView;
+import android.view.WindowManager;
 
 import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
+import com.otaliastudios.cameraview.CameraView;
+
 import org.havenapp.main.HavenApp;
 import org.havenapp.main.MonitorActivity;
 import org.havenapp.main.PreferenceManager;
 import org.havenapp.main.R;
+import org.havenapp.main.alerts.AlertManager;
 import org.havenapp.main.database.HavenEventDB;
 import org.havenapp.main.model.Event;
 import org.havenapp.main.model.EventTrigger;
@@ -44,13 +57,9 @@ import org.havenapp.main.sensors.BarometerMonitor;
 import org.havenapp.main.sensors.BumpMonitor;
 import org.havenapp.main.sensors.MicrophoneMonitor;
 import org.havenapp.main.sensors.PowerConnectionReceiver;
+import org.havenapp.main.ui.CameraViewHolder;
 
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.StringTokenizer;
-
-import androidx.annotation.RequiresApi;
-import androidx.core.app.NotificationCompat;
 
 @SuppressLint("HandlerLeak")
 public class MonitorService extends Service {
@@ -59,6 +68,11 @@ public class MonitorService extends Service {
      * Monitor instance
      */
     private static MonitorService sInstance;
+    private BroadcastReceiver screenStateReceiver;
+    private boolean isScreenOn = true;
+    private CameraViewHolder backgroundCameraHolder;
+    private CameraView backgroundCameraView;
+    private WindowManager windowManager;
 
     /**
      * To show a notification on service start
@@ -84,6 +98,7 @@ public class MonitorService extends Service {
     private PowerConnectionReceiver mPowerReceiver = null;
 
     private boolean mIsMonitoringActive = false;
+
 
     /**
      * Last Event instances
@@ -121,36 +136,97 @@ public class MonitorService extends Service {
     private PowerManager.WakeLock wakeLock;
 
     /**
+     * Background Operations
+     */
+    private void setupScreenStateReceiver() {
+        screenStateReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
+                    isScreenOn = false;
+                    // Just send broadcast - no background camera
+                    Intent screenOffIntent = new Intent("screen_state_changed");
+                    screenOffIntent.putExtra("screen_on", false);
+                    LocalBroadcastManager.getInstance(context).sendBroadcast(screenOffIntent);
+                } else if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
+                    isScreenOn = true;
+                    Intent screenOnIntent = new Intent("screen_state_changed");
+                    screenOnIntent.putExtra("screen_on", true);
+                    LocalBroadcastManager.getInstance(context).sendBroadcast(screenOnIntent);
+                }
+            }
+        };
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_SCREEN_OFF);
+        filter.addAction(Intent.ACTION_SCREEN_ON);
+        registerReceiver(screenStateReceiver, filter);
+    }
+
+    /**
      * Application
      */
     private HavenApp mApp = null;
-
+    private AlertManager alertManager;
 	/**
 	 * Called on service creation, sends a notification
 	 */
     @Override
     public void onCreate() {
-
         sInstance = this;
-
         mApp = (HavenApp)getApplication();
-
         mPrefs = new PreferenceManager(this);
+        alertManager = new AlertManager(this);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             setupNotificationChannel();
         }
 
+        setupScreenStateReceiver();
+
         startSensors();
 
         showNotification();
-
-      //  startCamera();
 
         PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.FULL_WAKE_LOCK,
                 "haven:MyWakelockTag");
         wakeLock.acquire();
+    }
+
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        Log.d("MonitorService", "onStartCommand called");
+
+        // Immediately start foreground to establish camera access rights
+        showNotification();
+
+        return START_STICKY;
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        // Restart service when task is removed
+        Intent restartServiceIntent = new Intent(getApplicationContext(), this.getClass());
+        restartServiceIntent.setPackage(getPackageName());
+
+        PendingIntent restartServicePendingIntent = PendingIntent.getService(
+                getApplicationContext(),
+                1,
+                restartServiceIntent,
+                PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        AlarmManager alarmService = (AlarmManager) getApplicationContext().getSystemService(ALARM_SERVICE);
+        alarmService.set(
+                AlarmManager.ELAPSED_REALTIME,
+                SystemClock.elapsedRealtime() + 1000,
+                restartServicePendingIntent
+        );
+
+        super.onTaskRemoved(rootIntent);
     }
 
     @RequiresApi(api = Build.VERSION_CODES.O)
@@ -177,11 +253,12 @@ public class MonitorService extends Service {
      */
     @Override
     public void onDestroy() {
-
+        if (screenStateReceiver != null) {
+            unregisterReceiver(screenStateReceiver);
+        }
         wakeLock.release();
         stopSensors();
-		stopForeground(true);
-
+        stopForeground(true);
     }
 	
     /**
@@ -197,38 +274,47 @@ public class MonitorService extends Service {
      * Show a notification while this service is running.
      */
     private void showNotification() {
-
-    	Intent toLaunch = new Intent(getApplicationContext(),
-    	                                          MonitorActivity.class);
-
+        Intent toLaunch = new Intent(getApplicationContext(), MonitorActivity.class);
         toLaunch.setAction(Intent.ACTION_MAIN);
         toLaunch.addCategory(Intent.CATEGORY_LAUNCHER);
         toLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
-        PendingIntent resultPendingIntent =
-                PendingIntent.getActivity(
-                        this,
-                        0,
-                        toLaunch,
-                        PendingIntent.FLAG_UPDATE_CURRENT
-                );
+        PendingIntent resultPendingIntent;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            resultPendingIntent = PendingIntent.getActivity(
+                    this,
+                    0,
+                    toLaunch,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+        } else {
+            resultPendingIntent = PendingIntent.getActivity(
+                    this,
+                    0,
+                    toLaunch,
+                    PendingIntent.FLAG_UPDATE_CURRENT
+            );
+        }
 
-        // In this sample, we'll use the same text for the ticker and the expanded notification
         CharSequence text = getText(R.string.secure_service_started);
+        NotificationCompat.Builder mBuilder =
+                new NotificationCompat.Builder(this, channelId)
+                        .setSmallIcon(R.drawable.ic_stat_haven)
+                        .setContentTitle(getString(R.string.app_name))
+                        .setContentText(text);
 
-		NotificationCompat.Builder mBuilder =
-				new NotificationCompat.Builder(this, channelId)
-						.setSmallIcon(R.drawable.ic_stat_haven)
-						.setContentTitle(getString(R.string.app_name))
-						.setContentText(text);
-
-		mBuilder.setPriority(NotificationCompat.PRIORITY_MIN);
+        mBuilder.setPriority(NotificationCompat.PRIORITY_MIN);
         mBuilder.setContentIntent(resultPendingIntent);
         mBuilder.setWhen(System.currentTimeMillis());
         mBuilder.setVisibility(NotificationCompat.VISIBILITY_SECRET);
 
-		startForeground(1, mBuilder.build());
-
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // API 34
+            startForeground(1, mBuilder.build(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE |
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA );
+        } else {
+            startForeground(1, mBuilder.build());
+        }
     }
 
     public boolean isRunning ()
@@ -313,7 +399,6 @@ public class MonitorService extends Service {
     * Sends an alert according to type of connectivity
     */
     public void alert(int alertType, String value) {
-
         Date now = new Date();
         boolean doNotification = false;
 
@@ -322,8 +407,14 @@ public class MonitorService extends Service {
         iEvent.putExtra("type",alertType);
         LocalBroadcastManager.getInstance(this).sendBroadcast(iEvent);
 
-        if (TextUtils.isEmpty(value))
-            return;
+        // FIX: Don't return early for empty values - create the event anyway
+        // if (TextUtils.isEmpty(value))
+        //     return;
+
+        // Use a default value if empty
+        if (TextUtils.isEmpty(value)) {
+            value = "detected";
+        }
 
         if (mLastEvent == null) {
             mLastEvent = new Event();
@@ -350,6 +441,7 @@ public class MonitorService extends Service {
         EventTrigger eventTrigger = new EventTrigger();
         eventTrigger.setType(alertType);
         eventTrigger.setPath(value);
+        eventTrigger.setEventId(mLastEvent.getId()); // Make sure eventId is set
 
         mLastEvent.addEventTrigger(eventTrigger);
 
@@ -358,44 +450,18 @@ public class MonitorService extends Service {
                 .getEventTriggerDAO().insert(eventTrigger);
         eventTrigger.setId(eventTriggerId);
 
-        if (doNotification) {
+        Log.d("MonitorService", "Event saved: type=" + alertType + " value=" + value + " triggerId=" + eventTriggerId);
 
+        if (doNotification) {
             mLastNotification = new Date();
-            /*
-             * If SMS mode is on we send an SMS or Signal alert to the specified
-             * number
-             */
+
             StringBuilder alertMessage = new StringBuilder();
             alertMessage.append(getString(R.string.intrusion_detected,
                     eventTrigger.getStringType(new ResourceManager(this))));
 
-            if (mPrefs.isRemoteNotificationActive() && mPrefs.isSignalVerified()) {
-                //since this is a secure channel, we can add the Onion address
-                if (mPrefs.getRemoteAccessActive() && (!TextUtils.isEmpty(mPrefs.getRemoteAccessOnion()))) {
-                    alertMessage.append(" http://").append(mPrefs.getRemoteAccessOnion())
-                            .append(':').append(WebServer.LOCAL_PORT);
-                }
-
-                SignalSender sender = SignalSender.getInstance(this, mPrefs.getSignalUsername());
-                ArrayList<String> recips = new ArrayList<>();
-                StringTokenizer st = new StringTokenizer(mPrefs.getRemotePhoneNumber(), ",");
-                while (st.hasMoreTokens())
-                    recips.add(st.nextToken());
-
-                String attachment = null;
-                if (eventTrigger.getType() == EventTrigger.CAMERA) {
-                    attachment = eventTrigger.getPath();
-                } else if (eventTrigger.getType() == EventTrigger.MICROPHONE) {
-                    attachment = eventTrigger.getPath();
-                }
-                else if (eventTrigger.getType() == EventTrigger.CAMERA_VIDEO) {
-                    attachment = eventTrigger.getPath();
-                }
-
-                sender.sendMessage(recips, alertMessage.toString(), attachment, null);
-            }
+            // Send via all configured alert channels
+            alertManager.sendAlert(alertMessage.toString(), eventTrigger.getPath(), alertType);
         }
-
     }
 
 
